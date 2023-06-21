@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="anypoint-resource-use-flow"
+		doc:id="6a2af504-0d9e-454c-b3ec-d4fdd1bb2a70">
+		<json-logger:logger doc:name="Logger"
+			doc:id="505adb08-be62-482e-80fd-da101ce08ab8"
+			config-ref="JSON_Logger_Config"
+			message="Recived request to fetch core utilization" priority="DEBUG">
+			<json-logger:content><![CDATA[#["none"]]]></json-logger:content>
+		</json-logger:logger>
+		<!-- <set-variable value='#[attributes.uriParams.rtfenv]' doc:name="Set 
+			Variable - rtfEnv" doc:id="cc5bf7b1-3c91-4946-955f-88d8a4e306a2" variableName="rtfEnv" 
+			/> <set-variable value="#[attributes.uriParams.zone]" doc:name="Set Variable-zoneId" 
+			doc:id="452a1b42-a45c-4bc8-87c0-0ae5dbcfacf4" variableName="zoneId" /> -->
+		<set-variable
+			value='#[vars.rtfenv as String ++ "." ++ vars.zone as String]'
+			doc:name="Set rtfEnvID" doc:id="3247b70b-7aeb-41ba-8fd9-0d42b237db6f"
+			variableName="rtfEnvID" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="61ebb21b-f90d-4c82-9415-7ceeccc71b79"
+			message='#[output application/json --- {"rtfEnvID": vars.rtfEnvID}]' />
+		<set-variable
+			value='#[p(vars.rtfEnvID) as String splitBy(",")]'
+			doc:name="Set allEnvIDs"
+			doc:id="5b69945b-5dd8-4757-a232-2d27ccfdf093"
+			variableName="allEnvIDs" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="0dfc5ecf-266b-45fe-b48a-e6e57356616a"
+			message='#[output application/json --- {"allEnvIDs": vars.allEnvIDs}]' />
+		<flow-ref doc:name="Anypoint Login"
+			doc:id="f8c1b23d-6036-4896-aac1-5ce65e61ea3c" name="anypoint-login" />
+		<set-variable value="#[[]]"
+			doc:name="Initialize variable - appList"
+			doc:id="a07d7032-67cd-4d84-a1c7-62de699cb8e4" variableName="appList" />
+		<foreach doc:name="For Each"
+			doc:id="056ff51a-2f94-469b-93d9-e2e2ac13c9e5"
+			collection="#[vars.allEnvIDs]">
+			<set-variable value="#[payload]"
+				doc:name="Set Variable - envId"
+				doc:id="f6e2e929-9a18-455b-baea-c544597d5533" variableName="envId" />
+			<set-variable value='#[p("orgIds." ++ vars.envId)]'
+				doc:name="Set Variable - orgId"
+				doc:id="67a8072d-712d-4907-98ab-a62053552a6b" variableName="orgId" />
+			<try doc:name="Try" doc:id="3a081c12-9b58-4ba9-b72d-d8b144ae4e36">
+				<http:request method="GET"
+					doc:name="Request_Get Application List"
+					doc:id="08e4b8d2-5677-48f0-bbb7-998c2434572b"
+					config-ref="HTTP_Request_configuration"
+					path="/armui/api/v1/applications" outputMimeType="application/json"
+					followRedirects="true">
+					<http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : vars.envId,
+	"Authorization" : "Bearer " ++ vars.token,
+	"X-ANYPNT-ORG-ID" : vars.orgId
+}]]]></http:headers>
+				</http:request>
+				<json-logger:logger doc:name="Logger"
+					doc:id="ad712fdc-9118-4837-9339-cfc3844eb9c1"
+					config-ref="JSON_Logger_Config"
+					message="Pulled all applications for the given org and env" priority="DEBUG"/>
+				<set-variable value="#[[]]"
+					doc:name="Initialize variable - appCoreUsage"
+					doc:id="b116155e-df12-45ee-8705-ea00c2c68400"
+					variableName="appCoreUsage" />
+				<foreach doc:name="For Each"
+					doc:id="455956fe-3458-4a66-a991-79dafc2a36af"
+					collection="#[payload.data]">
+					<json-logger:logger doc:name="Logger"
+						doc:id="5cb218d3-f284-4dd7-82e0-ad0f0f3a9345"
+						config-ref="JSON_Logger_Config"
+						message="Fetching resource utilization for individual apps" priority="DEBUG"/>
+					<set-variable value="#[payload]"
+						doc:name="Set Variable - forEachPayload"
+						doc:id="e42ada7e-fc12-42aa-8f82-886e22b0ffa9"
+						variableName="forEachPayload" />
+					<try doc:name="Try"
+						doc:id="b451b543-151a-4873-815e-96159084ab9e">
+						<http:request method="GET" doc:name="Request"
+							doc:id="afbb88df-1ef3-470e-9fcf-642d42530e0f"
+							config-ref="HTTP_Request_configuration"
+							path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments/{appId}">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"appId": payload.id
+}]]]></http:uri-params>
+						</http:request>
+						<json-logger:logger doc:name="Logger"
+							doc:id="623a7096-f31d-45c0-b2ce-2f2ba195ea84"
+							config-ref="JSON_Logger_Config"
+							message="Induvidual app resource utlization pulled" priority="DEBUG"/>
+						<choice doc:name="Choice" doc:id="6029f4b0-d3eb-4d4d-9f75-d3ffd4f00fca" >
+							<when expression='#[vars.timestamp == "TRUE"]'>
+								<ee:transform doc:name="Transform Message" doc:id="441130e0-d8bf-4784-b92e-5eb1513575ed">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	env: vars.forEachPayload.target.name,
+	orgId: vars.orgId,
+	appName: vars.forEachPayload.artifact.name,
+	status: vars.forEachPayload.application.status,
+	artifactId: payload.application.ref.artifactId,
+	version: payload.application.ref.version,
+	lastMileSecurity: payload.target.deploymentSettings.lastMileSecurity,
+	apiid: payload.application.configuration."mule.agent.application.properties.service".properties."app.id" default payload.application.configuration."mule.agent.application.properties.service".properties."api.id",
+	timeout: payload.application.configuration."mule.agent.application.properties.service".properties."proxy.responseTimeout",
+	url: payload.target.deploymentSettings.http.inbound.publicUrl default payload.target.deploymentSettings.publicUrl ,
+	cpuReserved: ((payload.target.deploymentSettings.resources.cpu.reserved default payload.target.deploymentSettings.cpuReserved) replace "m" with "") as Number/ 1000,
+	cpuMax: ((payload.target.deploymentSettings.resources.cpu.limit default payload.target.deploymentSettings.cpuMax) replace "m" with "") as Number/ 1000,
+	memReserved: ((payload.target.deploymentSettings.resources.memory.reserved default payload.target.deploymentSettings.memoryReserved) replace "Mi" with "") as Number/ 1000,
+	memMax: ((payload.target.deploymentSettings.resources.memory.limit default payload.target.deploymentSettings.memoryMax) replace "Mi" with "") as Number/ 1000,
+	replica: payload.target.replicas,
+	creationDate: payload.creationDate as DateTime {unit : "milliseconds"},
+	lastModifiedDate: payload.lastModifiedDate as DateTime {unit : "milliseconds"},
+	logging: payload.application.configuration."mule.agent.application.properties.service".properties."logging.level.org.mule.extension.jsonlogger" ++ " - " ++ payload.application.configuration."mule.agent.application.properties.service".properties."logging.level.org.mule.service.http.impl.service.HttpMessageLogger" default "",
+	runtimeVersion: payload.target.deploymentSettings.runtimeVersion default ""
+}]]></ee:set-payload>
+							</ee:message>
+							<ee:variables>
+							</ee:variables>
+						</ee:transform>
+							</when>
+							<when expression="#[vars.outputformat == 'json']">
+								<ee:transform doc:name="Transform Message" doc:id="2cdc8135-3c88-42d5-9b54-26dfd7e00e63" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</when>
+							<otherwise>
+								<ee:transform doc:name="Transform Message" doc:id="4b9f2fbc-83a2-41bb-9e71-718ec3208d3f">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	env: vars.forEachPayload.target.name,
+	orgId: vars.orgId,
+	appName: vars.forEachPayload.artifact.name,
+	status: vars.forEachPayload.application.status,
+	artifactId: payload.application.ref.artifactId,
+	version: payload.application.ref.version,
+	lastMileSecurity: payload.target.deploymentSettings.lastMileSecurity,
+	apiid: payload.application.configuration."mule.agent.application.properties.service".properties."app.id" default payload.application.configuration."mule.agent.application.properties.service".properties."api.id",
+	timeout: payload.application.configuration."mule.agent.application.properties.service".properties."proxy.responseTimeout",
+	url: payload.target.deploymentSettings.http.inbound.publicUrl default payload.target.deploymentSettings.publicUrl ,
+	cpuReserved: ((payload.target.deploymentSettings.resources.cpu.reserved default payload.target.deploymentSettings.cpuReserved) replace "m" with "") as Number/ 1000,
+	cpuMax: ((payload.target.deploymentSettings.resources.cpu.limit default payload.target.deploymentSettings.cpuMax) replace "m" with "") as Number/ 1000,
+	memReserved: ((payload.target.deploymentSettings.resources.memory.reserved default payload.target.deploymentSettings.memoryReserved) replace "Mi" with "") as Number/ 1000,
+	memMax: ((payload.target.deploymentSettings.resources.memory.limit default payload.target.deploymentSettings.memoryMax) replace "Mi" with "") as Number/ 1000,
+	replica: payload.target.replicas
+}]]></ee:set-payload>
+									</ee:message>
+									<ee:variables />
+								</ee:transform>
+							</otherwise>
+						</choice>
+						<set-variable
+							value="#[if(1==1)(payload &gt;&gt; vars.appCoreUsage) else (1)]"
+							doc:name="Update Variable appCoreUsage"
+							doc:id="92caa707-1309-4121-b2d3-c1523abd3fd8"
+							variableName="appCoreUsage" />
+						<!-- <choice doc:name="Choice" doc:id="53f15756-9708-4052-8808-6514655191d8" 
+							> <otherwise > <ee:transform doc:name="Transform Message" doc:id="0ecaa9e9-2853-400a-9b33-a1b331628e6a" 
+							> <ee:message > <ee:set-payload ><![CDATA[%dw 2.0 output application/java 
+							-&#45;&#45; { env: vars.forEachPayload.target.name, appId: vars.forEachPayload.id, 
+							appName: vars.forEachPayload.artifact.name, artifactId: payload.application.ref.artifactId, 
+							version: payload.application.ref.version, lastMileSecurity: payload.target.deploymentSettings.lastMileSecurity, 
+							apiid: payload.application.configuration."mule.agent.application.properties.service".properties."api.id", 
+							appid: payload.application.configuration."mule.agent.application.properties.service".properties."app.id", 
+							url: payload.target.deploymentSettings.http.inbound.publicUrl, status: vars.forEachPayload.application.status, 
+							cpuReserved: payload.target.deploymentSettings.resources.cpu.reserved default 
+							payload.target.deploymentSettings.resources.cpu.reserved, cpuMax: payload.target.deploymentSettings.resources.cpu.limit 
+							default payload.target.deploymentSettings.resources.cpu.limit, memReserved: 
+							payload.target.deploymentSettings.resources.memory.reserved default payload.target.deploymentSettings.resources.memory.reserved, 
+							memMax: payload.target.deploymentSettings.memoryMax default payload.target.deploymentSettings.resources.memory.limit, 
+							replica: payload.target.replicas }]]></ee:set-payload> </ee:message> </ee:transform> 
+							</otherwise> </choice> -->
+						<error-handler>
+							<on-error-continue enableNotifications="true"
+								logException="true" doc:name="On Error Continue"
+								doc:id="009af437-1841-497b-afa6-8e533ba1f12d">
+								<json-logger:logger doc:name="Logger"
+									doc:id="0638fe1b-6233-4dfa-9fa1-3e003f78d694"
+									config-ref="JSON_Logger_Config"
+									message="Error occurred while fectching resources" priority="ERROR">
+									<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.forEachPayload.artifact.name,
+ 	error: error.message
+}]]]></json-logger:content>
+								</json-logger:logger>
+							</on-error-continue>
+						</error-handler>
+					</try>
+				</foreach>
+				<ee:transform doc:name="Transform Message" doc:id="081f8492-ba5b-4562-bfcf-c660c36c925c">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="appList"><![CDATA[%dw 2.0
+output application/java
+---
+if(!(vars.appCoreUsage == []))(vars.appCoreUsage ++ vars.appList) else vars.appList]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<error-handler>
+					<on-error-continue enableNotifications="true"
+						logException="true" doc:name="On Error Continue"
+						doc:id="e8c35a39-7e14-4a44-8cee-a59f59130c16">
+						<json-logger:logger doc:name="Logger"
+							doc:id="aa8c1037-727e-4302-9f7c-832118484061"
+							config-ref="JSON_Logger_Config"
+							message="Error occurred while getting application list" priority="ERROR">
+							<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.envId,
+ 	error: error.message
+}]]]></json-logger:content>
+						</json-logger:logger>
+					</on-error-continue>
+				</error-handler>
+			</try>
+		</foreach>
+		<choice doc:name="Choice" doc:id="cc18fce8-92af-48c9-a4b2-3eb55f07ed2c" >
+			<when expression="#[vars.outputformat == 'json']">
+				<ee:transform doc:name="Transform Message" doc:id="613b5570-5176-4669-9986-f65f4d3d1d83">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.appList]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message" doc:id="0c121e7d-be68-4138-9f9c-86d3b7a27698">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+vars.appList]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</otherwise>
+		</choice>
+		<json-logger:logger doc:name="Logger"
+			doc:id="e33870a2-cc34-441a-9a7e-6090575b0020"
+			config-ref="JSON_Logger_Config" message="Final response payload" priority="DEBUG">
+			<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+		</json-logger:logger>
+	</flow>
+	<sub-flow name="anypoint-login"
+		doc:id="14fa4cd9-3352-478c-9e2b-b3beb05f5273">
+		<ee:transform doc:name="Transform Message"
+			doc:id="b09c2f37-861c-45ae-9a35-c94caf67af42">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+	grant_type: p('login.grantType'), 
+	client_id: p('login.clientId'),
+	client_secret: p('login.clientSecret'),
+	username: p('login.username'),
+	password: p('login.password')
+}
+
+//{
+//	username: p('login.username'),
+//	password: p('login.password')
+//}]]></ee:set-payload>
+				<ee:set-attributes><![CDATA[%dw 2.0
+output application/java
+---
+null]]></ee:set-attributes>
+			</ee:message>
+		</ee:transform>
+		<http:request method="POST" doc:name="Request"
+			doc:id="b9919616-126a-4d92-a212-8675789991d8"
+			config-ref="HTTP_Request_configuration"
+			path="/accounts/api/v2/oauth2/token" />
+		<set-variable value="#[payload.access_token]"
+			doc:name="Set Variable - token"
+			doc:id="b3bc4986-5adf-427a-98d4-feb9a2776648" variableName="token" />
+	</sub-flow>
+</mule>

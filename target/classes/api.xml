@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd  http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <flow name="get-resource-allocation-main">
+        <http:listener path="api/*" config-ref="get-resource-allocation-httpListenerConfig">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <ee:transform doc:name="Transform Message" doc:id="47fc4e6a-bacf-4f16-aaf5-7dd1013695ac">
+            <ee:message />
+            <ee:variables>
+                <ee:set-variable variableName="timestamp"><![CDATA[attributes.headers.'timestamp']]></ee:set-variable>
+                <ee:set-variable variableName="outputformat"><![CDATA[attributes.headers.'outputformat']]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <apikit:router config-ref="get-resource-allocation-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": "Bad request",
+	"error description": error.description,
+	"developer message": "pass '/nonprod/preprod/prod/dr' for rtfenv && '/semitrusted/trusted' for zone && '/start/stop/status/status/status' for Manage && '/ch' and '/dev/dev01/qa/uat/uat01/hotfix/preprod/training/prod' for chenv for CloudHub"
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": "Resource not found",
+	"error description": error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": "Method not allowed",
+	"error description": error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[405]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": "Method not allowed",
+	"error description": error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[406]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"error": "Method not allowed",
+	"error description": error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[415]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="get-resource-allocation-console">
+        <http:listener path="/console/*" config-ref="get-resource-allocation-httpListenerConfig">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="get-resource-allocation-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="get:\core\ch\(chenv):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="chenv"><![CDATA[lower(attributes.uriParams.'chenv') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="5f39dd10-f369-4a3d-9289-8ff047197c13" name="consolidated-ch-env-utilizationFlow" />
+        <logger level="INFO" message="get:\core\(chenv):get-resource-allocation-config" />
+    </flow>
+    <flow name="get:\core\(rtfenv)\(zone):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="rtfenv"><![CDATA[lower(attributes.uriParams.'rtfenv') as String]]></ee:set-variable>
+                <ee:set-variable variableName="zone"><![CDATA[lower(attributes.uriParams.'zone') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="d2a62d2e-ddd9-40a6-b28b-f780674c1560" name="anypoint-resource-use-flow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="get:\api\ch\(chenv):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="chenv"><![CDATA[lower(attributes.uriParams.'chenv') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="4bdad21b-d930-4e6d-9635-43b931ab3e46" name="consolidated-chapi-env-utilizationFlow" />
+        <logger level="INFO" message="get:\core\(chenv):get-resource-allocation-config" />
+    </flow>
+    <flow name="get:\api\(rtfenv)\(zone):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="rtfenv"><![CDATA[lower(attributes.uriParams.'rtfenv') as String]]></ee:set-variable>
+                <ee:set-variable variableName="zone"><![CDATA[lower(attributes.uriParams.'zone') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="a739e592-ad1e-49c8-92e6-03bb7bf576c5" name="consolidated-rtfapi-env-utilizationFlow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="get:\reports\org\(organizationId)\env\(environmentId):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="orgId"><![CDATA[lower(attributes.uriParams.'organizationId') as String]]></ee:set-variable>
+                <ee:set-variable variableName="envId"><![CDATA[lower(attributes.uriParams.'environmentId') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="10f59acc-0ab3-413e-9e8a-1ab8922db496" name="consolidated-performance-reportFlow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="get:\reports\(reportenv)\(timerange):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="reportenv"><![CDATA[lower(attributes.uriParams.'reportenv') as String]]></ee:set-variable>
+                <ee:set-variable variableName="timerange"><![CDATA[lower(attributes.uriParams.'timerange') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="36b197c4-b8bc-4ba9-bb73-fe7609d71386" name="consolidated-performance-reportFlow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="get:\reports\nodes\(cluster):get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="cluster"><![CDATA[lower(attributes.uriParams.'cluster') as String]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="Flow Reference" doc:id="98020b01-7871-42ff-9aeb-da47865722bd" name="node-cluster-utilizationFlow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="get:\reports\nodes\all:get-resource-allocation-config">
+        <flow-ref doc:name="Flow Reference" doc:id="30f73735-3721-4abd-a50b-c7462155ee4e" name="all-node-utilizationFlow" />
+        <logger level="INFO" message="#[payload]" />
+    </flow>
+    <flow name="patch:\manage\(rtfenv)\(status):get-resource-allocation-config">
+        <ee:transform doc:name="Transform Message" doc:id="cf164b51-7131-4f77-a6ee-5887e73b3269">
+            <ee:message />
+            <ee:variables>
+                <ee:set-variable variableName="rtfEnv"><![CDATA[attributes.uriParams.'rtfenv']]></ee:set-variable>
+                <ee:set-variable variableName="reqPayload"><![CDATA[%dw 2.0
+output application/java
+---
+payload splitBy("\n")]]></ee:set-variable>
+                <ee:set-variable variableName="reqStatus"><![CDATA[%dw 2.0
+output application/json
+---
+if(attributes.uriParams.'status' == "start") "STARTED" else "STOPPED"]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="patch:\manage\(rtfenv)\(status):get-resource-allocation-config" />
+        <flow-ref doc:name="Flow Reference" doc:id="84429bba-e63c-4627-99b5-d3a4459069c8" name="app-management-mainFlow" />
+    </flow>
+    <flow name="get:\manage\(rtfenv)\(status)\appstatus:get-resource-allocation-config">
+        <ee:transform doc:name="Transform Message" doc:id="34cb8790-c00d-44a2-a449-cb1f6229f363">
+            <ee:message />
+            <ee:variables>
+                <ee:set-variable variableName="reqPayload"><![CDATA[%dw 2.0
+output application/java
+---
+payload splitBy("\n")]]></ee:set-variable>
+                <ee:set-variable variableName="reqStatus"><![CDATA[%dw 2.0
+output application/json
+---
+attributes.uriParams.'status' default ""]]></ee:set-variable>
+				<ee:set-variable variableName="rtfenv" ><![CDATA[attributes.uriParams.'rtfenv']]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="get:\manage\(rtfenv)\(status)\appstatus:get-resource-allocation-config" />
+        <flow-ref doc:name="Flow Reference" doc:id="1759a8d7-28d8-4165-93cf-3d0b3742807c" name="app-management-mainFlow" />
+    </flow>
+    <flow name="get:\reports\org\(organizationId)\env:get-resource-allocation-config">
+        <ee:transform>
+            <ee:variables>
+                <ee:set-variable variableName="organizationId">attributes.uriParams.'organizationId'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <logger level="INFO" message="get:\reports\org\(organizationId)\env:get-resource-allocation-config" />
+    </flow>
+</mule>

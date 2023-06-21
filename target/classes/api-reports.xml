@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<sub-flow name="get-api-details-subflow" doc:id="fe561259-0f3b-4bec-b3dc-5c31c90fea4a" >
+		<foreach doc:name="For Each" doc:id="e83bd6c3-ead7-4331-b3a6-621f26749b10" collection="#[vars.allEnvIDs]">
+			<set-variable value="#[payload]" doc:name="Set Variable - envId" doc:id="a89344fd-66f4-4cc6-a191-c986496d94d0" variableName="envId" />
+			<set-variable value='#[p("orgIds." ++ vars.envId)]' doc:name="Set Variable - orgId" doc:id="def17f69-1975-4ea9-b2ee-5c8f923455db" variableName="orgId" />
+			<try doc:name="Try" doc:id="dd3856d2-78eb-40ab-9029-5430de621355">
+				<http:request method="GET" doc:name="Request_Get Application List" doc:id="57b9a347-cceb-4f7f-931f-a61ce862f858" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=0&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true" target="getListPayload">
+					<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+					<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId
+}]]]></http:uri-params>
+				
+</http:request>
+				<choice doc:name="Choice" doc:id="d71a17a7-f7b6-44de-bc73-637d01b38937" >
+					<when expression="#[vars.getListPayload.total &gt;=100]">
+						<http:request method="GET" doc:name="Request_Get Application List 100-200" doc:id="e6d36794-6aed-44b6-8e93-eeead0a693e4" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=100&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true" >
+							<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params ><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId
+}]]]></http:uri-params>
+						</http:request>
+						<ee:transform doc:name="Transform Message" doc:id="d5355b49-f61d-4c8c-9da4-e6be44f0f8b5" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	total: payload.total,
+	instances: vars.getListPayload.instances ++ payload.instances
+	
+	}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<json-logger:logger doc:name="Logger" doc:id="63123ef1-fb94-4789-82ed-a3c6676e0f9b" config-ref="JSON_Logger_Config" message="Pulled all applications for the given org and env" priority="DEBUG" />
+					</when>
+					<otherwise >
+						<logger level="DEBUG" doc:name="Logger" doc:id="571b66cb-6407-4b8d-a280-1ae5ee4784a0" message="total api's is less than 100"/>
+						<set-payload value="#[vars.getListPayload]" doc:name="Set Payload" doc:id="1deb451b-fd4e-4e02-8d12-9b3c6a4f4610" />
+					</otherwise>
+				</choice>
+				<set-variable value="#[[]]" doc:name="Initialize variable - appCoreUsage" doc:id="d7442990-98b8-4215-8f7f-d5ec81dab3c0" variableName="appCoreUsage" />
+				<foreach doc:name="For Each" doc:id="460270ae-e9c5-4af9-a24c-c91df4c697b1" collection="#[payload.instances]">
+					<json-logger:logger doc:name="Logger" doc:id="048b0e79-658c-45a3-91ed-f9f915cd0bce" config-ref="JSON_Logger_Config" message="Fetching resource utilization for individual apps" priority="DEBUG"/>
+					<set-variable value="#[payload]" doc:name="Set Variable - forEachPayload" doc:id="a32c1071-5d8f-46ac-b683-d1e20b7b26c6" variableName="forEachPayload" />
+					<set-variable value="#[vars.forEachPayload.id]" doc:name="Set Variable -apiid" doc:id="d9ba551d-2e2b-4f03-a4b6-ec3a4938480e" variableName="apiid"/>
+					<scatter-gather doc:name="Scatter-Gather" doc:id="37f3a57f-4ac2-44a7-af25-0d81e16d8a07">
+						<route>
+							<http:request method="GET" doc:name="Request_Get Proxy Status" doc:id="d8b3a815-8957-4505-bc5f-d58fc555c43d" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}?includeProxyConfiguration=true&amp;includeTlsContexts=true" outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"apiid": vars.apiid
+}]]]></http:uri-params>
+					</http:request>
+							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="3e8f4c60-f15b-4b08-8fd1-b368ca8a475f" variableName="proxyStatusResponse" />
+							<logger level="DEBUG" doc:name="Logger" doc:id="c3c38ddd-0111-456a-8d8f-05698590d952" message="#[vars.proxyStatusResponse]"/>
+							<!-- <json-logger:logger doc:name="Logger" doc:id="79f2d8fe-08c7-449b-9c91-d828108778ac" config-ref="JSON_Logger_Config" message="proxyStatusResponse">
+								<json-logger:content><![CDATA[#[output application/json -&#45;&#45;
+{
+ 	payload: vars.proxyStatusResponse,
+ 	attributes: attributes
+}]]]></json-logger:content>
+							</json-logger:logger> -->
+						</route>
+						<route>
+							<http:request method="GET" doc:name="Request_Get Client Contracts List" doc:id="9d9f06ca-8b6e-4fc0-91b0-c50758bf2e1f" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/contracts?ascending=true&amp;limit=100&amp;offset=0&amp;sort=name" outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"apiid": vars.apiid
+}]]]></http:uri-params>
+					</http:request>
+							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="b9acba81-039f-4894-b092-539799c072ce" variableName="contractsResponse" />
+							<logger level="DEBUG" doc:name="Logger" doc:id="357fb9b3-1210-4b74-984d-18703deef670" message="#[vars.contractsResponse]"/>
+							<!-- <json-logger:logger doc:name="Logger" doc:id="cc8e0ed8-a651-4849-8a1c-9d98aac4c378" config-ref="JSON_Logger_Config" message="contractsResponse">
+								<json-logger:content><![CDATA[#[output application/json -&#45;&#45;
+{
+ 	payload: vars.contractsResponse,
+ 	attributes: attributes
+}]]]></json-logger:content>
+							</json-logger:logger> -->
+						</route>
+						<route>
+							<http:request method="GET" doc:name="Request_Get Policies List" doc:id="ecbe953c-3474-4650-8041-d03690092621" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/policies?fullInfo=false" outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"apiid": vars.apiid
+}]]]></http:uri-params>
+					</http:request>
+							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="f4dc3408-35da-43c1-9cd7-6ae75872e888" variableName="policyResponse" />
+							<logger level="DEBUG" doc:name="Logger" doc:id="9a17347b-ed81-4f58-8650-451491fd4b00" message="#[vars.policyResponse]"/>
+							<!-- <json-logger:logger doc:name="Logger" doc:id="7fe1da8b-d41d-4b26-bfe7-c1d4545380e3" config-ref="JSON_Logger_Config" message="policyResponse">
+								<json-logger:content><![CDATA[#[output application/json -&#45;&#45;
+{
+ 	payload: vars.policyResponse,
+ 	attributes: attributes
+}]]]></json-logger:content>
+							</json-logger:logger> -->
+						</route>
+					</scatter-gather>
+					<logger level="DEBUG" doc:name="Logger" doc:id="7aae387e-8c4e-40e0-92f9-d33098f8b54a" message="#[vars.forEachPayload]" />
+					<ee:transform doc:name="Transform Message" doc:id="f8eeaaae-3fd4-416a-b59e-ff8c394a532d">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	env: if (vars.chEnvID != null) vars.chEnvID else vars.rtfEnvID,
+	orgId: vars.orgId,
+	appName: vars.forEachPayload.assetId,
+	//status: if(vars.statusResponse != [null] ) "Active" else "UnRegistered",
+	apiid: vars.forEachPayload.id,
+	version: vars.forEachPayload.assetVersion,
+	proxy: if(vars.proxyStatusResponse.deployment != null) "Endpoint with Proxy" else "Basic Endpoint",
+	applicationName: if(vars.proxyStatusResponse.deployment != null) (vars.proxyStatusResponse.deployment.applicationName) else "",
+	implementationUri: if(vars.proxyStatusResponse.deployment != null) vars.proxyStatusResponse.endpoint.uri else "",
+	responseTimeout: vars.proxyStatusResponse.endpoint.responseTimeout,
+	contractCount: vars.forEachPayload.activeContractsCount,
+	contracts: if (vars.contractsResponse.contracts != []) (vars.contractsResponse.contracts.application.name joinBy (" - ")) else "",
+	policies: if (vars.policyResponse != []) vars.policyResponse.assetId joinBy " - " else ""
+}]]></ee:set-payload>
+						</ee:message>
+						<ee:variables>
+						</ee:variables>
+					</ee:transform>
+					<!-- <json-logger:logger doc:name="Logger" doc:id="dfb0ccfb-2cb9-4f67-b097-338615c49fd8" config-ref="JSON_Logger_Config" message="Transformed Msg"/> -->
+					<set-variable value="#[if(1==1)(payload &gt;&gt; vars.appCoreUsage) else (1)]" doc:name="Update Variable appCoreUsage" doc:id="d3941dd7-2e73-47f9-b78d-f6c0f8d53e98" variableName="appCoreUsage" />
+					<!-- <json-logger:logger doc:name="Logger" doc:id="04cb8a48-9d91-49b4-b2c1-3313f6df6df7" config-ref="JSON_Logger_Config" message="appCoreUsage">
+						<json-logger:content ><![CDATA[#[output application/json -&#45;&#45;
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+					</json-logger:logger> -->
+				
+</foreach>
+				<ee:transform doc:name="Transform Message" doc:id="ddc19732-81c3-439c-ac65-86503bacf9bd">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="appList"><![CDATA[%dw 2.0
+output application/java
+---
+if(!(vars.appCoreUsage == []))(vars.appCoreUsage ++ vars.appList) else vars.appList]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<error-handler>
+					<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="dbc8c7d1-9f7d-4cd5-a812-440f452480f6">
+						<json-logger:logger doc:name="Logger" doc:id="1bed85a7-269b-4329-b720-ec395dc951eb" config-ref="JSON_Logger_Config" message="Error occurred while getting application list" priority="ERROR">
+							<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.envId,
+ 	error: error.message
+}]]]></json-logger:content>
+						</json-logger:logger>
+					</on-error-continue>
+				</error-handler>
+			</try>
+
+		</foreach>
+	</sub-flow>
+	<flow name="consolidated-chapi-env-utilizationFlow"
+		doc:id="c81f95d1-98d9-46a3-aeae-44f4f29b47d6">
+		<json-logger:logger doc:name="Logger"
+			doc:id="2afff3f4-60af-483b-9a7c-2fe481bddac9"
+			config-ref="JSON_Logger_Config"
+			message="Recived request to fetch core utilization" priority="DEBUG">
+			<json-logger:content><![CDATA[#["none"]]]></json-logger:content>
+		</json-logger:logger>
+		<!-- <set-variable value='#[attributes.uriParams.rtfenv]' doc:name="Set 
+			Variable - rtfEnv" doc:id="f767575e-71e9-43c5-afd4-910ef285eb5a" variableName="rtfEnv" 
+			/> <set-variable value="#[attributes.uriParams.zone]" doc:name="Set Variable-zoneId" 
+			doc:id="0a1bbf7d-1fd9-4e7c-9d3d-e68f4d5905d4" variableName="zoneId" /> -->
+		<set-variable value='#["ch." ++ vars.chenv as String]'
+			doc:name="Set chEnvID" doc:id="7cb97a50-65d7-44aa-806b-978f035e16c2"
+			variableName="chEnvID" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="54931f86-f60c-4851-96fe-2e3ff090292b"
+			message='#[output application/json --- {"chEnvID": vars.chEnvID}]' />
+		<set-variable
+			value='#[p(vars.chEnvID) as String splitBy(",")]'
+			doc:name="Set allEnvIDs"
+			doc:id="ebef4328-8010-448f-a0f3-1f9dc87f4b66"
+			variableName="allEnvIDs" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="13f761c8-b409-41a9-9118-963503980e69"
+			message='#[output application/json --- {"allEnvIDs": vars.allEnvIDs}]' />
+		<flow-ref doc:name="Anypoint Login"
+			doc:id="e57e1055-3e6f-47bc-9d09-8e9be5597f22" name="anypoint-login" />
+		<set-variable value="#[[]]"
+			doc:name="Initialize variable - appList"
+			doc:id="6de6c3e4-2337-476d-aacd-9de6dc26239e" variableName="appList" />
+		<flow-ref doc:name="Flow Reference" doc:id="fbed1c33-4813-4669-aff4-fd487c1453b0" name="get-api-details-subflow" />
+		<ee:transform doc:name="Transform Message"
+			doc:id="b9f56963-9c24-4903-b2c8-1ac20a472e3b">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+vars.appList]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<json-logger:logger doc:name="Logger"
+			doc:id="72ad2757-cd3b-48ea-be1a-015a160b7424"
+			config-ref="JSON_Logger_Config" message="Final response payload" priority="DEBUG">
+			<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+		</json-logger:logger>
+	</flow>
+	<flow name="consolidated-rtfapi-env-utilizationFlow"
+		doc:id="7476cc1c-5a5c-494e-b826-551a474b0dd5">
+		<json-logger:logger doc:name="Logger"
+			doc:id="cd0d2469-3462-448f-86d9-105044cfed92"
+			config-ref="JSON_Logger_Config"
+			message="Recived request to fetch core utilization" priority="DEBUG">
+			<json-logger:content><![CDATA[#["none"]]]></json-logger:content>
+		</json-logger:logger>
+		<!-- <set-variable value='#[attributes.uriParams.rtfenv]' doc:name="Set 
+			Variable - rtfEnv" doc:id="182269cf-9877-4115-b5b7-e1bdac3e70c8" variableName="rtfEnv" 
+			/> <set-variable value="#[attributes.uriParams.zone]" doc:name="Set Variable-zoneId" 
+			doc:id="5c931e32-fbcf-48d1-b664-dce82bcce105" variableName="zoneId" /> -->
+		<set-variable
+			value='#[vars.rtfenv as String ++ "." ++ vars.zone as String]'
+			doc:name="Set rtfEnvID" doc:id="0f84f443-515a-41cd-b28f-0ed7adb564a9"
+			variableName="rtfEnvID" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="9a7d1106-6ed6-4e29-a079-c12f420f4df4"
+			message='#[output application/json --- {"rtfEnvID": vars.rtfEnvID}]' />
+		<set-variable
+			value='#[p(vars.rtfEnvID) as String splitBy(",")]'
+			doc:name="Set allEnvIDs"
+			doc:id="37d6e7d0-0c0b-4730-920d-3a362ee8cd40"
+			variableName="allEnvIDs" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="be6fa2a8-6bce-4814-b443-917ad4d3fed3"
+			message='#[output application/json --- {"allEnvIDs": vars.allEnvIDs}]' />
+		<flow-ref doc:name="Anypoint Login"
+			doc:id="bb648119-9f2b-47b7-bb07-821506f9faa3" name="anypoint-login" />
+		<set-variable value="#[[]]"
+			doc:name="Initialize variable - appList"
+			doc:id="4412ee7a-073d-4485-bc45-cd67615c1cce" variableName="appList" />
+		<flow-ref doc:name="Flow Reference" doc:id="cf202cf3-d33f-4978-a578-5e5d49903794" name="get-api-details-subflow"/>
+		<ee:transform doc:name="Transform Message"
+			doc:id="da23f1c0-9c62-4721-a840-40cce9768228">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+vars.appList]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<json-logger:logger doc:name="Logger"
+			doc:id="4a9831d1-15b0-44ca-b949-47c4a999aa1f"
+			config-ref="JSON_Logger_Config" message="Final response payload" priority="DEBUG">
+			<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+		</json-logger:logger>
+	</flow>
+	
+</mule>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+	xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="d382e19a-53d5-4462-b083-99443d23951e" >
+		<os:connection />
+	</os:config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="569e272e-9af7-4119-b109-249a611e5907" entryTtl="15" entryTtlUnit="MINUTES" config-ref="ObjectStore_Config" expirationInterval="15"/>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="86a03701-5f66-4c53-a958-e04b4e93b766" >
+		<http:request-connection protocol="HTTPS" host="anypoint.mulesoft.com" />
+	</http:request-config>
+	<json-logger:config name="JSON_Logger_Config" doc:name="JSON Logger Config" doc:id="8900957c-d016-4486-8c4e-f9f99517110a" applicationName="get-resource-allocation" applicationVersion="1.0.0" environment="DEV" />
+	<http:listener-config name="get-resource-allocation-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081"/>
+    </http:listener-config>
+    <email:smtp-config name="emailSmptConfig" doc:name="Email SMTP" doc:id="a5e7c4a0-94b9-4f8a-b336-0c9471ca31a4" >
+		<email:smtp-connection host="${email.host}" connectionTimeout="30" readTimeout="30" writeTimeout="30" port="${email.port}">
+			<reconnection >
+				<reconnect count="5" />
+			</reconnection>
+		</email:smtp-connection>
+	</email:smtp-config>
+    <apikit:config name="get-resource-allocation-config" api="get-resource-allocation.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <configuration-properties doc:name="Configuration properties" doc:id="070543fe-8aa6-4a23-901a-49bf76826feb" file="properties.yaml" />
+	<configuration doc:name="Configuration" doc:id="1e70f5e2-555f-474b-b13d-5b9c1142aede" defaultErrorHandler-ref="ng-error-handler"/>
+	<api-gateway:autodiscovery apiId="${api.id}" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="e8dc3c8f-6b1d-444d-865f-d56389348c4a" flowRef="get-resource-allocation-main" />
+
+</mule>
+	

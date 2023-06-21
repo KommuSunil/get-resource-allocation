@@ -1,0 +1,587 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="consolidated-app-reportFlow"
+		doc:id="37fdbca9-ebf9-4be1-b5aa-98d665a9444e">
+		<json-logger:logger doc:name="Logger"
+			doc:id="d33dc387-f138-4c2e-8b78-97859e3d8101"
+			config-ref="JSON_Logger_Config"
+			message="Recived request to fetch core utilization" priority="DEBUG">
+			<json-logger:content><![CDATA[#["none"]]]></json-logger:content>
+		</json-logger:logger>
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="68ea2e12-ae1c-42a3-a40c-d85067533da4"
+			message='#[output application/json --- {"env": vars.envId, "org": vars.orgId}]' />
+		<flow-ref doc:name="Anypoint Login"
+			doc:id="9d658376-9746-42cd-97b9-2d121a0e4203" name="anypoint-login" />
+		<try doc:name="Try" doc:id="b7528390-30fb-4d66-99c4-f0b25995e889">
+			<http:request method="GET"
+				doc:name="Request_Get Application List"
+				doc:id="fd1a4491-0e3d-421d-a293-63de9472580f"
+				config-ref="HTTP_Request_configuration"
+				path="/armui/api/v1/applications" outputMimeType="application/json"
+				followRedirects="true">
+				<http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : vars.envId,
+	"Authorization" : "Bearer " ++ vars.token,
+	"X-ANYPNT-ORG-ID" : vars.orgId
+}]]]></http:headers>
+			</http:request>
+			<scatter-gather doc:name="Scatter-Gather"
+				doc:id="1a3ea2fe-84b0-4228-a7b2-9a63f4dfa067">
+				<route>
+					<http:request method="GET"
+						doc:name="Request_Get Application Memory_Report"
+						doc:id="ff16f942-96ae-44fd-a038-504d488c5bd4"
+						config-ref="HTTP_Request_configuration"
+						path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/memory-utilization/from/now-30d/to/now?"
+						outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+}]]]></http:uri-params>
+					</http:request>
+					<set-variable value="#[payload]"
+						doc:name="Set Memory Response"
+						doc:id="a1ff462d-59e9-4727-8b34-4276f74b80f4"
+						variableName="memoryResponse" />
+				</route>
+				<route>
+					<http:request method="GET"
+						doc:name="Request_Get Application Failure_Report"
+						doc:id="0b3d8a31-a032-46b7-80f0-0df0dbcced69"
+						config-ref="HTTP_Request_configuration"
+						path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/failures/from/now-30d/to/now?"
+						outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+}]]]></http:uri-params>
+					</http:request>
+					<set-variable value="#[payload]"
+						doc:name="Set Failures Response"
+						doc:id="5c32f5be-15dc-43e9-b2d6-68fb05fdf53e"
+						variableName="failureResponse" />
+				</route>
+				<route>
+					<http:request method="GET"
+						doc:name="Request_Get Application CPU_Report"
+						doc:id="8b3d15d4-9194-43b6-966b-8ba2d83e1141"
+						config-ref="HTTP_Request_configuration"
+						path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/cpu-utilization/from/now-30d/to/now?"
+						outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+}]]]></http:uri-params>
+					</http:request>
+					<set-variable value="#[payload]"
+						doc:name="Set CPU Response"
+						doc:id="f20070d6-6e0d-4e4d-bcfa-42116cbe804d"
+						variableName="cpuResponse" />
+				</route>
+				<route>
+					<http:request method="GET"
+						doc:name="Request_Get Application Perf_Report"
+						doc:id="02cb529d-44fe-4be8-a582-c34a8c69d5dd"
+						config-ref="HTTP_Request_configuration"
+						path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/performance/from/now-30d/to/now?"
+						outputMimeType="application/json" followRedirects="true">
+						<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+						<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+}]]]></http:uri-params>
+					</http:request>
+					<set-variable value="#[payload]"
+						doc:name="Set Perf Response"
+						doc:id="5f7d3a82-d063-415c-9929-af94f78b899b"
+						variableName="perfResponse" />
+				</route>
+			</scatter-gather>
+			<json-logger:logger doc:name="Logger"
+				doc:id="9b56ecd8-c8b3-483e-bb01-3582866f0f29"
+				config-ref="JSON_Logger_Config"
+				message="Pulled all applications for the given org and env" priority="DEBUG"/>
+			<ee:transform doc:name="Transform Message"
+				doc:id="2ec10965-94cd-4b9f-82ca-fad41265d481">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+
+fun pluckField(arrayVal) = if (arrayVal != null) arrayVal reduce $ + $$ else null
+---
+vars.perfResponse.applicationData default[] map using (perfAppId = $.appId)
+{
+
+	// extracting fields from performance	
+	appId:$.appId,	
+	envName: $.envName,	
+	orgName: $.orgName,	
+	requestVolume: $.requestVolume,	
+	responseTime: $.responseTime,	
+	
+	// extracting fields from failureCount	
+	failedRequests: pluckField((vars.failureResponse.applicationData  filter(valueOfFailureCount) -> (valueOfFailureCount.appId contains perfAppId)).failedRequests),
+	successfulRequests: pluckField((vars.failureResponse.applicationData filter ($.appId contains perfAppId)).successfulRequests),
+		
+	// extracting fields from cpuUtilization	
+	cpuUtilization: pluckField((vars.cpuResponse.applicationData filter ($.appId contains perfAppId)).cpuUtilization),
+		
+	// extracting fields from memoryUtilization	
+	memUtilization: pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization),
+	memoryPressure: pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryPressure),
+	totalMemory: pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).totalMemory)
+	
+}
+
+
+]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<logger level="DEBUG" doc:name="Logger"
+				doc:id="b1b8afbd-c01a-47fa-ad30-3d440c040d0a" message="#[payload]" />
+			<error-handler>
+				<on-error-continue enableNotifications="true"
+					logException="true" doc:name="On Error Continue"
+					doc:id="e2c0d8c4-3ff7-4664-aff5-a77f6ac9ee8b">
+					<json-logger:logger doc:name="Logger"
+						doc:id="6f78f0f3-c8d6-490d-8a1b-a29d854d3d87"
+						config-ref="JSON_Logger_Config"
+						message="Error occurred while getting application list" priority="ERROR">
+						<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.envId,
+ 	error: error.message
+}]]]></json-logger:content>
+					</json-logger:logger>
+				</on-error-continue>
+			</error-handler>
+		</try>
+		<ee:transform doc:name="Transform Message"
+			doc:id="4a952652-2f2b-4f37-b1ce-e6ce7f01808b">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<json-logger:logger doc:name="Logger"
+			doc:id="061eb45f-aa19-46ac-8ab8-edb0c7522793"
+			config-ref="JSON_Logger_Config" message="Final response payload" priority="DEBUG">
+			<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+		</json-logger:logger>
+	</flow>
+	<flow name="consolidated-performance-reportFlow"
+		doc:id="363368d6-a1ee-4e40-a9a8-d44a16201097">
+		<json-logger:logger doc:name="Logger"
+			doc:id="b20a120d-7384-4efd-b093-05469f45bfdd"
+			config-ref="JSON_Logger_Config"
+			message="Recived request to fetch core utilization" priority="DEBUG">
+			<json-logger:content><![CDATA[#["none"]]]></json-logger:content>
+		</json-logger:logger>
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="0896f32e-4519-4098-a70d-0f48dcb5c521"
+			message='#[output application/json --- {"reportenv": vars.reportenv}]' />
+		<flow-ref doc:name="Anypoint Login"
+			doc:id="3f857685-0b1b-4202-9925-efa3e6b730c7" name="anypoint-login" />
+		<ee:transform doc:name="Transform Message"
+			doc:id="59f816a8-2bcf-433b-8749-0e701a5662d0">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="stenv"><![CDATA["prod.semitrusted"]]></ee:set-variable>
+				<ee:set-variable variableName="tenv"><![CDATA["prod.trusted"]]></ee:set-variable>
+				<ee:set-variable variableName="chenv"><![CDATA["ch.prod"]]></ee:set-variable>
+				<ee:set-variable variableName="reportenv"><![CDATA["report." ++ vars.reportenv as String]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<set-variable
+			value='#[p(vars.reportenv) as String splitBy(",")]'
+			doc:name="Set allEnvIDs"
+			doc:id="9f4a0f63-c21a-418a-a026-fcd7e0a1a9fb"
+			variableName="allEnvIDs" />
+		<logger level="DEBUG" doc:name="Logger"
+			doc:id="a42ae5fb-698e-4d2a-a81d-2a442953f1a3"
+			message='#[output application/json --- {"allEnvIDs": vars.allEnvIDs}]' />
+		<set-variable value="#[[]]"
+			doc:name="Initialize variable - appList"
+			doc:id="73a80d77-3654-4d16-a790-0058fad3ff72" variableName="appList" />
+		<foreach doc:name="For Each"
+			doc:id="5489a770-58ab-4498-9a57-931c5a5f0492"
+			collection="#[vars.allEnvIDs]">
+			<set-variable value="#[payload]"
+				doc:name="Set Variable - envId"
+				doc:id="3f7edadd-4dd4-4238-b069-c340431d821c" variableName="envId" />
+			<set-variable value='#[p("orgIds." ++ vars.envId)]'
+				doc:name="Set Variable - orgId"
+				doc:id="6e7c3443-c66f-417a-920f-12a1892031eb" variableName="orgId" />
+			<try doc:name="Try" doc:id="202bd54c-17ce-4489-bf45-001d9f652ac3">
+				<http:request method="GET"
+					doc:name="Request_Get Application List"
+					doc:id="032c6d0b-905e-4f0c-9d6d-f2778810b770"
+					config-ref="HTTP_Request_configuration"
+					path="/armui/api/v1/applications" outputMimeType="application/json"
+					followRedirects="true" sendCorrelationId="AUTO">
+					<http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : vars.envId,
+	"Authorization" : "Bearer " ++ vars.token,
+	"X-ANYPNT-ORG-ID" : vars.orgId
+}]]]></http:headers>
+				</http:request>
+				<scatter-gather doc:name="Scatter-Gather"
+					doc:id="06aee627-6d31-4db3-ba02-ebfdd82f699b">
+					<route>
+						<http:request method="GET"
+							doc:name="Request_Get Application Memory_Report"
+							doc:id="e3e69021-61ab-4718-bae4-bf92e21c37ca"
+							config-ref="HTTP_Request_configuration"
+							path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/memory-utilization/from/now-{timerange}/to/now?"
+							outputMimeType="application/json" followRedirects="true">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"timerange": vars.timerange
+}]]]></http:uri-params>
+						</http:request>
+						<set-variable value="#[payload]"
+							doc:name="Set Memory Response"
+							doc:id="738f536e-1dfd-4c75-997c-05b33eb9c0b2"
+							variableName="memoryResponse" />
+					</route>
+					<route>
+						<http:request method="GET"
+							doc:name="Request_Get Application Failure_Report"
+							doc:id="a3a10223-07c9-4abf-ab7a-6e79c4c79177"
+							config-ref="HTTP_Request_configuration"
+							path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/failures/from/now-{timerange}/to/now?"
+							outputMimeType="application/json" followRedirects="true">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"timerange": vars.timerange
+}]]]></http:uri-params>
+						</http:request>
+						<set-variable value="#[payload]"
+							doc:name="Set Failures Response"
+							doc:id="650d667f-9c34-488e-92a4-163c0f88089c"
+							variableName="failureResponse" />
+					</route>
+					<route>
+						<http:request method="GET"
+							doc:name="Request_Get Application CPU_Report"
+							doc:id="fb525b3f-9db5-46c8-806e-71a160219bd9"
+							config-ref="HTTP_Request_configuration"
+							path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/cpu-utilization/from/now-{timerange}/to/now?"
+							outputMimeType="application/json" followRedirects="true">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"timerange": vars.timerange
+}]]]></http:uri-params>
+						</http:request>
+						<set-variable value="#[payload]"
+							doc:name="Set CPU Response"
+							doc:id="fad4fbe7-c609-4f91-bc69-c6f91ed02e1e"
+							variableName="cpuResponse" />
+					</route>
+					<route>
+						<http:request method="GET"
+							doc:name="Request_Get Application Perf_Report"
+							doc:id="8c097752-cf51-4710-83e3-c929b26f9f6d"
+							config-ref="HTTP_Request_configuration"
+							path="/monitoring/api/organizations/{orgId}/environments/{envId}/reports/performance/from/now-{timerange}/to/now?"
+							outputMimeType="application/json" followRedirects="true">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId,
+	"timerange": vars.timerange
+}]]]></http:uri-params>
+						</http:request>
+						<set-variable value="#[payload]"
+							doc:name="Set Perf Response"
+							doc:id="ad5376b3-2cda-434b-b6e2-fc56e2f9bec1"
+							variableName="perfResponse" />
+					</route>
+				</scatter-gather>
+				<json-logger:logger doc:name="Logger"
+					doc:id="ccaebddc-a07f-4372-b25d-01e65eeee8eb"
+					config-ref="JSON_Logger_Config"
+					message="Pulled all applications for the given org and env" priority="DEBUG"/>
+				<ee:transform doc:name="Transform Message"
+					doc:id="0db14104-a366-4916-a81d-a02e23069ed1">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+import * from dw::core::Strings
+fun pluckField(arrayVal) = if (arrayVal != null) arrayVal reduce $ + $$ else null
+---
+vars.perfResponse.applicationData default[] map using (perfAppId = $.appId)
+{
+
+	// extracting fields from performance	
+	appId:$.appId replace ".us-e1.cloudhub.io" with "",	
+	envName: $.envName,	
+	orgName: $.orgName,	
+	responseTime: (round($.responseTime) /1000) as String ++ " s",	
+	requestVolume: $.requestVolume,	
+	
+	// extracting fields from failureCount	
+	successfulRequests: pluckField((vars.failureResponse.applicationData filter ($.appId contains perfAppId)).successfulRequests),
+	failedRequests: pluckField((vars.failureResponse.applicationData  filter(valueOfFailureCount) -> (valueOfFailureCount.appId contains perfAppId)).failedRequests),
+		
+	// extracting fields from cpuUtilization	
+	cpuUtilization: pluckField((vars.cpuResponse.applicationData filter ($.appId contains perfAppId)).cpuUtilization) as String {format: "0.00"} ++ " %",
+		
+	// extracting fields from memoryUtilization
+	totalMemory: if (sizeOf ( round (round(pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).totalMemory) as Number) as Number /1048576 as String) as String) > 3) (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).totalMemory) as Number /1073741824) as String {format: "0.00"} ++ " GB" else (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).totalMemory) as Number /1048576) as String {format: "000.00"} ++ " MB",
+	memUtilization: if (sizeOf ( round (round(pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization) as Number) as Number /1048576 as String) as String) > 3) (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization) as Number /1073741824) as String {format: "0.00"} ++ " GB" else (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization) as Number /1048576) as String {format: "000.00"} ++ " MB",
+	//memUtilization: if (sizeOf(substringBefore((pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memUtilization) as Number /1048576) as String, ".")) > 3) (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization) as Number /1073741824) as String {format: "0.00"} ++ " GB" else (pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryUtilization) as Number /1048576) as String {format: "000.00"} ++ " MB",
+	memoryPressure: pluckField((vars.memoryResponse.applicationData filter ($.appId contains perfAppId)).memoryPressure) as String {format: "0.00"} ++ " %"
+	
+}
+
+
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="DEBUG" doc:name="Logger"
+					doc:id="3c11a822-2767-4b50-b172-e9b4af4bf30e" message="#[payload]" />
+				<set-variable
+					value="#[if(!(payload == []))(payload ++ vars.appList) else vars.appList]"
+					doc:name="Update Variable appList"
+					doc:id="18ae9694-5347-496d-86b8-d1fe6798eca5"
+					variableName="appList" />
+				<logger level="DEBUG" doc:name="Logger"
+					doc:id="17a03c60-fcee-4ef6-85eb-203148f71666"
+					message="#[vars.appList]" />
+				<error-handler>
+					<on-error-continue enableNotifications="true"
+						logException="true" doc:name="On Error Continue"
+						doc:id="bf6b9110-11a7-4a85-98f6-ae60ecbf32d0">
+						<json-logger:logger doc:name="Logger"
+							doc:id="39d7a1f3-c861-48c4-bdf3-01a157fe083d"
+							config-ref="JSON_Logger_Config"
+							message="Error occurred while getting application list" priority="ERROR">
+							<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.envId,
+ 	error: error.message
+}]]]></json-logger:content>
+						</json-logger:logger>
+					</on-error-continue>
+				</error-handler>
+			</try>
+		</foreach>
+		<ee:transform doc:name="Transform Message"
+			doc:id="1d5f6990-97bb-408a-a46b-ab7ae4c762af">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+vars.appList]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<json-logger:logger doc:name="Logger"
+			doc:id="312398ab-b44f-4e25-8c55-d4f8d8041c1f"
+			config-ref="JSON_Logger_Config" message="Final response payload" priority="DEBUG">
+			<json-logger:content><![CDATA[#[output application/json ---
+{
+ 	payload: vars.appCoreUsage,
+ 	attributes: attributes
+}]]]></json-logger:content>
+		</json-logger:logger>
+
+	</flow>
+	<flow name="node-cluster-utilizationFlow" doc:id="8408eb28-72ab-4270-a49a-5ba6f5727822" >
+		<flow-ref doc:name="Flow Reference" doc:id="c4afd936-cf40-416d-a62a-4124c64d370e" name="anypoint-login"/>
+		<set-variable value='#["nodeUsage." ++ vars.cluster]' doc:name="Set Variable" doc:id="6d837c38-a8d9-4b5b-8b66-732af9d80e96" variableName="clusterId"/>
+		<logger level="DEBUG" doc:name="Logger" doc:id="56166925-03a6-49d9-936d-16a15f2e9800" message="#[vars.clusterId]"/>
+		<set-variable value='#[p(vars.clusterId) as String]' doc:name="Set Variable" doc:id="0e1518f3-7afe-4308-9675-24b11aeee76b" variableName="clusterId"/>
+		<logger level="DEBUG" doc:name="Logger" doc:id="6d04a045-2d7d-46cc-b9a2-d019b17bad94" message="#[vars.clusterId]"/>
+		<http:request method="GET" doc:name="Request to RTF Cluster" doc:id="c724aa9d-9b8e-4df1-b13c-8d4ba47c0d60" config-ref="HTTP_Request_configuration" path="/runtimefabric/api/organizations/56c14f77-79ed-4de3-8313-d542ea9f232b/fabrics/{cluster}" >
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"cluster" : vars.clusterId
+}]]]></http:uri-params>
+		</http:request>
+		<choice doc:name="Choice" doc:id="411009b7-0b7d-4ccf-bcb5-00cb5f286f0d" >
+			<when expression="#[vars.outputformat == 'json']">
+				<logger level="DEBUG" doc:name="Logger" doc:id="4a5bc2b3-3494-4b3e-baaf-cfeeea541626" message="#[payload]"/>
+			</when>
+			<otherwise>
+				<set-variable value="#[payload]" doc:name="Set Variable" doc:id="5041e497-ca4c-4543-a2b5-cb233bb46fba" variableName="responseVar"/>
+				<set-variable value="#[[]]" doc:name="Set Variable" doc:id="0d3726da-fe11-4cad-a528-957aab49ecb2" variableName="allNodeUsage"/>
+				<foreach doc:name="For Each" doc:id="fd8edac5-8b9f-4cc1-801e-b7a38075fc7b" collection="#[payload.nodes]">
+					<ee:transform doc:name="Transform Message" doc:id="bd8ef8e8-9915-43d7-9287-8ea94cd4c934">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	clusterName: vars.responseVar.name,
+	region: vars.responseVar.region,
+	version: vars.responseVar.version,
+	status: vars.responseVar.status,
+	nodeIP: payload.name,
+	kubeletVersion: payload.kubeletVersion,
+	dockerVersion: payload.dockerVersion,
+	role: payload.role,
+	healthy: payload.status.isHealthy,
+	ready: payload.status.isReady,
+	scheduled: payload.status.isSchedulable,
+	'cpu-capacity': payload.capacity.cpuMillis,
+	'cpu-min-allocated': payload.allocatedRequestCapacity.cpuMillis,
+	'cpu-max-allocated': payload.allocatedLimitCapacity.cpuMillis,
+	'mem-capacity': payload.capacity.memoryMi,
+	'mem-min-allocated': payload.allocatedRequestCapacity.memoryMi,
+	'mem-max-allocated': payload.allocatedLimitCapacity.memoryMi,
+	'pods-capacity': payload.capacity.pods,
+	'pods-deployed': if (payload.role == "worker") (payload.allocatedRequestCapacity.pods as Number - 6) as String else payload.allocatedRequestCapacity.pods	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+					<set-variable value="#[if(1==1)(payload &gt;&gt; vars.allNodeUsage) else (1)]" doc:name="Set Variable" doc:id="d1b4c0f5-6434-4e5e-ad86-0331ebc1a382" variableName="allNodeUsage"/>
+				</foreach>
+				<ee:transform doc:name="Transform Message" doc:id="49b2cce0-3af0-4cb5-b9e0-5a743537dc66" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+vars.allNodeUsage]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	
+</flow>
+	<flow name="all-node-utilizationFlow" doc:id="6c5acb97-7df6-49e2-ad68-4687fe7626ce" >
+		<flow-ref doc:name="Flow Reference" doc:id="281db326-87b7-4336-ab88-fe75cde5f6d0" name="anypoint-login"/>
+		<set-variable value='#["nodeUsage.all"]' doc:name="Set Variable" doc:id="1dc6e337-dcdd-45fd-9deb-6d72bc457208" variableName="nodeUsage"/>
+		<set-variable value='#[p("nodeUsage.all") as String splitBy(",")]' doc:name="Set Variable" doc:id="5ac7593e-7a03-4b69-93e8-e48889cfb4e0" variableName="allClusterIds"/>
+		<logger level="DEBUG" doc:name="Logger" doc:id="ec1f4ba0-c4d4-4564-b6fa-3c1958c990c0" message="#[vars.allClusterIds]"/>
+		<set-variable value="#[[]]" doc:name="Set Variable" doc:id="643f4100-e490-4c3b-80c4-4142ccbdf1eb" variableName="allClusterNodes"/>
+		<foreach doc:name="For Each" doc:id="ac1fc2f9-7370-4afb-9cfa-72ae5524d501" collection="#[vars.allClusterIds]">
+			<set-variable value="#[payload]" doc:name="Set Variable" doc:id="25543e26-5151-49b2-a3d6-c27e4808a320" variableName="clusterId"/>
+			<http:request method="GET" doc:name="Request to RTF Cluster" doc:id="525516ca-db60-4c5d-8496-26add4a41f0f" config-ref="HTTP_Request_configuration" path="/runtimefabric/api/organizations/56c14f77-79ed-4de3-8313-d542ea9f232b/fabrics/{cluster}">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ vars.token
+}]]]></http:headers>
+			<http:uri-params><![CDATA[#[output application/java
+---
+{
+	"cluster" : vars.clusterId
+}]]]></http:uri-params>
+		</http:request>
+			<set-variable value="#[payload]" doc:name="Set Variable" doc:id="ac6777b1-8541-4b97-8109-62e3c36c7b4a" variableName="responseVar" />
+			<set-variable value="#[[]]" doc:name="Set Variable" doc:id="6496f19e-cebc-448e-898b-37ad76cd55b8" variableName="allNodeUsage" />
+			<foreach doc:name="For Each" doc:id="71ac6ebf-3067-436b-9b41-e71a06547502" collection="#[payload.nodes]">
+					<ee:transform doc:name="Transform Message" doc:id="38b14a01-67ea-4c2d-a512-317d250a8338">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	clusterName: vars.responseVar.name,
+	region: vars.responseVar.region,
+	version: vars.responseVar.version,
+	status: vars.responseVar.status,
+	nodeIP: payload.name,
+	kubeletVersion: payload.kubeletVersion,
+	dockerVersion: payload.dockerVersion,
+	role: payload.role,
+	healthy: payload.status.isHealthy,
+	ready: payload.status.isReady,
+	scheduled: payload.status.isSchedulable,
+	'cpu-capacity': payload.capacity.cpuMillis,
+	'cpu-min-allocated': payload.allocatedRequestCapacity.cpuMillis,
+	'cpu-max-allocated': payload.allocatedLimitCapacity.cpuMillis,
+	'mem-capacity': payload.capacity.memoryMi,
+	'mem-min-allocated': payload.allocatedRequestCapacity.memoryMi,
+	'mem-max-allocated': payload.allocatedLimitCapacity.memoryMi,
+	'pods-capacity': payload.capacity.pods,
+	'pods-deployed': payload.allocatedRequestCapacity.pods	
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+					<set-variable value="#[if(1==1)(payload &gt;&gt; vars.allNodeUsage) else (1)]" doc:name="Set Variable" doc:id="3ee62d0e-2939-4c9e-9ff1-f3abaae71d2a" variableName="allNodeUsage" />
+				</foreach>
+			<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;if(!(vars.allClusterNodes == []))(vars.allClusterNodes ++ vars.allNodeUsage) else vars.allNodeUsage]" doc:name="Set Variable" doc:id="dee1c090-ebad-4526-be3e-ebd46c181039" variableName="allClusterNodes"/>
+		</foreach>
+		<logger level="DEBUG" doc:name="Logger" doc:id="28bdd8c4-de2e-4f6d-b65b-882fb9f99ee4" message="#[vars.allClusterNodes]"/>
+		<ee:transform doc:name="Transform Message" doc:id="647aeccb-89ea-4515-8316-1c76bacf00d0">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/csv
+---
+vars.allClusterNodes]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+	
+</flow>
+</mule>

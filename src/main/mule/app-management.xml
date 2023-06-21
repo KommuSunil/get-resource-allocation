@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<flow name="app-management-mainFlow" doc:id="73a085ae-2662-47b9-93e0-b23b53aae28b">
+		<choice doc:name="Choice" doc:id="57988863-99ea-4289-b324-5592aa445d4f" >
+			<when expression="#[lower(attributes.uriParams.'rtfenv') as String == &quot;prod&quot; or lower(attributes.uriParams.'rtfenv') as String == &quot;dr&quot;]">
+				<flow-ref doc:name="Flow Reference-validate-user-key" doc:id="a1c431df-a266-4602-9db6-bbe4eea54e40" name="validate-user-key"/>
+				<choice doc:name="Choice" doc:id="8408012f-d852-4248-ab31-c35a9e50c654" >
+					<when expression="#[payload.status == true]">
+						<choice doc:name="Choice" doc:id="3f4edf96-e438-497e-9532-4376f3ff952c">
+							<when expression='#[lower(vars.reqStatus) == "status"]'>
+								<flow-ref doc:name="Flow Reference" doc:id="8c8e5597-c825-478b-ab7f-4b4fd3534d47" name="get-status-flow"/>
+							</when>
+							<otherwise >
+								<flow-ref doc:name="Flow Reference" doc:id="d7f93a24-6f5e-422e-b0c0-695462146540" name="app-management-logic-flow" />
+							</otherwise>
+						</choice>
+						<logger level="DEBUG" doc:name="Logger" doc:id="b818547f-9e24-4402-8038-7958e3be9447" message="user and userkey validated"/>
+					</when>
+					<otherwise>
+						<flow-ref doc:name="Flow Reference" doc:id="b500d75a-3646-45c2-990c-b875c2b1143c" name="raise-error-flow"/>
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<choice doc:name="Choice" doc:id="4c69a10f-45bd-497a-99eb-166104f7420c" >
+					<when expression='#[lower(vars.reqStatus) == "status"]'>
+						<flow-ref doc:name="Flow Reference" doc:id="d83de411-7007-41fa-8771-77820d79de09" name="get-status-flow"/>
+					</when>
+					<otherwise >
+						<flow-ref doc:name="Flow Reference" doc:id="2269ccf8-1d82-4507-b5e2-bdfa56169106" name="app-management-logic-flow" />
+					</otherwise>
+				</choice>
+			</otherwise>
+		</choice>
+		<!-- <foreach doc:name="For Each" doc:id="8b8e5c15-e3d9-4ba8-967d-d37fe4ff31ae" collection="#[vars.allOrgs]">
+			<logger level="ERROR" doc:name="Logger" doc:id="b5f5c777-5bf5-41a5-902f-1fe9fe9cccb7" message="#[payload]"/>
+			<set-variable value="#[payload]" doc:name="Set Variable" doc:id="46a2f2cb-e319-4c4e-9fb3-c2e5c5d6376c" variableName="orgId"/>
+		</foreach> -->
+	</flow>
+	<flow name="app-management-logic-flow" doc:id="5a38c4ff-282f-4b11-b16e-2151f9f54e45" >
+		<flow-ref doc:name="Anypoint Login Flow reference" doc:id="4fed3fdd-f67c-46d7-b524-2c8cd819f3c3" name="anypoint-login" />
+		<flow-ref doc:name="getAppId Flow reference" doc:id="a48af4f6-2fad-44e5-9e44-98ed8bdc5bc9" name="get-appid-subflow" />
+		<set-variable value="#[[]]" doc:name="Set Variable" doc:id="7d7638d6-7c1e-4c32-9201-e6f928283111" variableName="statusReport" />
+		<foreach doc:name="For Each" doc:id="8244d7d9-c05c-4f8e-8f1b-92c1c841f036" collection="#[vars.reqPayload]">
+			<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;((((payload as String replace "\n" with "") replace "\r" with "") replace "\t" with "") replace " " with "") replace "," with ""]' doc:name="Set Variable" doc:id="02065c87-3354-478c-8bbc-4aa99b9e4d08" variableName="appName" />
+			<logger level="DEBUG" doc:name="Logger" doc:id="a3c33ef7-82a4-46d6-8d0e-5420e194937d" message="#[vars.appName]" />
+			<choice doc:name="Choice" doc:id="45f46401-2036-491b-a9e4-32b89ea8adf0">
+				<when expression='#[(vars.appName != "")]'>
+					<ee:transform doc:name="Transform Message" doc:id="4ec3cf50-bc98-45e9-ad9c-fe54610675fb">
+				<ee:message>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="appDetails"><![CDATA[%dw 2.0
+output application/json
+var appDetails = vars.appList filter($.appName == vars.appName)
+---
+{
+    appName: appDetails.appName[0],
+    appId: appDetails.appId[0],
+    orgId: appDetails.orgId[0],
+    envId: appDetails.envId[0]
+}
+]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+					<logger level="DEBUG" doc:name="Logger" doc:id="1bf2feb4-63f2-44a8-b3f8-c33bed998eff" message="#[vars.appDetails]" />
+					<http:request method="PATCH" doc:name="Request" doc:id="ce1096e5-27b3-4401-909d-fc58f8b51633" config-ref="HTTP_Request_configuration" path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments/{appId}">
+				<http:body><![CDATA[#[{
+    "application": {
+        "desiredState": vars.reqStatus
+    }
+}]]]></http:body>
+				<http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : vars.envId,
+	"Authorization" : "Bearer " ++ vars.token,
+	"X-ANYPNT-ORG-ID" : vars.orgId
+}]]]></http:headers>
+				<http:uri-params><![CDATA[#[{
+	"orgId": vars.appDetails.orgId,
+	"envId": vars.appDetails.envId,
+	"appId": vars.appDetails.appId
+}]]]></http:uri-params>
+			</http:request>
+					<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;[&#10;	status: vars.appName ++ " is " ++ vars.reqStatus as String&#10;	&#10;	]]' doc:name="Set Variable" doc:id="bff1a467-2dc0-484e-947c-10202f21a2f9" variableName="appStatus" />
+					<logger level="DEBUG" doc:name="Logger" doc:id="44ca749e-ac82-4675-9b15-f55be4d429f1" message="#[vars.appStatus]" />
+					<set-variable value="#[if(1==1)(vars.appStatus &gt;&gt; vars.statusReport) else (1)]" doc:name="Set Variable" doc:id="db09150a-0441-4dd1-bd6e-896c1f2d3e55" variableName="statusReport" />
+				</when>
+				<otherwise>
+					<logger level="ERROR" doc:name="Logger" doc:id="2fbfe9fa-b2c8-4249-975b-adddb857982f" message="appName is empty" />
+				</otherwise>
+			</choice>
+		</foreach>
+		<set-payload value="#[%dw 2.0&#10;output application/json&#10;---&#10;vars.statusReport..status&#10;//orderBy($.status)]" doc:name="Set Payload" doc:id="cabdc8cc-c3e5-4e7d-b174-4692afc433d2" />
+	</flow>
+	<sub-flow name="get-appid-subflow" doc:id="02cdcfa3-13ae-4e9f-9806-741fef8ae415">
+		<ee:transform doc:name="Transform Message" doc:id="d84b777a-221b-442e-90ac-44f948923d44">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="stList"><![CDATA[vars.rtfenv as String ++ ".semitrusted"]]></ee:set-variable>
+				<ee:set-variable variableName="trustList"><![CDATA[vars.rtfenv as String ++ ".trusted"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="Logger" doc:id="5485c971-2d5c-4468-a53e-d9ac26ddc10b" message="#[vars.reqPayload]" />
+		<logger level="DEBUG" doc:name="Logger" doc:id="61b386b9-bc16-4441-9da0-ae588e92aa92" message="#[%dw 2.0&#10;output application/java&#10;---&#10;vars.trustList]" />
+		<logger level="DEBUG" doc:name="Logger" doc:id="7fa699f9-ccc5-4e10-a42f-d84479043eae" message="#[%dw 2.0&#10;output application/java&#10;---&#10;vars.stList]" />
+		<set-variable value='#[(p(vars.stList) as String ++ "," ++ p(vars.trustList) as String) splitBy(",")]' doc:name="Set Variable" doc:id="d4217a76-c575-4de0-a78b-649e3b9796cc" variableName="allEnvs" />
+		<logger level="DEBUG" doc:name="Logger" doc:id="0f4da8d7-c1d5-46e6-ae66-222534dd5624" message="#[%dw 2.0&#10;output application/java&#10;---&#10;vars.allEnvs]" />
+		<set-variable value="#[[]]" doc:name="Set Variable" doc:id="c4e512bc-2172-4915-b844-354880bfffae" variableName="appList" />
+		<foreach doc:name="For Each" doc:id="0accc961-3779-451e-974d-7c2fa4085552" collection="#[vars.allEnvs]">
+				<logger level="DEBUG" doc:name="Logger" doc:id="5da403ae-efd8-41a6-9aa3-716e8f52e173" message="#[payload]" />
+				<set-variable value="#[payload]" doc:name="Set Variable" doc:id="34a40adb-9608-452a-a5c8-05c06a44d959" variableName="envId" />
+				<set-variable value='#[p("orgIds." ++ vars.envId)]' doc:name="Set Variable - orgId" doc:id="448b0da1-fefb-4ccd-959f-f467183c4de1" variableName="orgId" />
+			<http:request method="GET" doc:name="Request" doc:id="17fa4af0-28f5-4254-8459-f3e3d117dfa0" config-ref="HTTP_Request_configuration" path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments">
+					<http:headers><![CDATA[#[output application/java
+---
+{
+	"X-ANYPNT-ENV-ID" : vars.envId,
+	"Authorization" : "Bearer " ++ vars.token,
+	"X-ANYPNT-ORG-ID" : vars.orgId
+}]]]></http:headers>
+					<http:uri-params><![CDATA[#[{
+	"orgId": vars.orgId,
+	"envId": vars.envId
+}]]]></http:uri-params>
+				</http:request>
+			<set-variable value="#[[]]" doc:name="Set Variable" doc:id="fceb45da-02fa-4711-80e3-0735df8b3417" variableName="envAppList" />
+			<foreach doc:name="For Each" doc:id="f1403cb9-1877-4891-a354-d1f7252cc4c8" collection="#[payload.items]">
+				<ee:transform doc:name="Transform Message" doc:id="8683b0c5-b891-45e5-8186-e50b11a1ed5e">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	appName: payload.name,
+	appId: payload.id,
+	orgId: vars.orgId,
+	envId: vars.envId
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+				<set-variable value="#[if(1==1)(payload &gt;&gt; vars.envAppList) else (1)]" doc:name="Set Variable" doc:id="5610efe6-a19a-4a83-9b51-527b07f72278" variableName="envAppList" />
+			</foreach>
+			<set-variable value="#[if(1==1)(vars.envAppList ++ vars.appList) else (1)]" doc:name="Set Variable" doc:id="4deb1c12-788d-4f14-a254-21e2b913e53c" variableName="appList" />
+			<logger level="DEBUG" doc:name="Logger" doc:id="f63989ff-11d1-4a8a-8537-efb9f9eb166e" message="#[output application/json&#10;---&#10;vars.appList]" />
+			</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="e1b14bd8-1b85-44cc-b5ea-9445c1bb0611">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.appList]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<flow name="store-user-key-Flow" doc:id="7dd38404-3d38-4a18-8fb6-6f37153fd8c4" >
+		<http:listener doc:name="Listener" doc:id="d7c26a6e-7af8-414a-adde-587cc860d672" config-ref="get-resource-allocation-httpListenerConfig" path="/store/userkey">
+			<http:error-response >
+				<http:body ><![CDATA[#[output text/plain --- "unauthorized to execute this operation"]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<ee:transform doc:name="Transform Message" doc:id="a0017c67-8b1b-4136-98e4-c29fd48683b7" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="nmpcid" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.headers.'nmpcid' as String]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference" doc:id="5bd8329a-e236-4965-a9fb-c7251f521576" name="validate-user" />
+		<choice doc:name="Choice" doc:id="b41b5e6a-f4ef-499b-a603-a02fe6942e6a">
+			<when expression="#[vars.userValidation == true]">
+				<ee:transform doc:name="Transform Message" doc:id="0806c54b-6b48-42a7-92dc-b332a461b648">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var strCharSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' ++ 'abcdefghijklmnopqrstuvwxyz' ++ '0123456789' ++ '~`!@#%^&*()_-+={[}]|:;<,>.?/'
+var strCharSetLength = sizeOf(strCharSet) - 1
+var intLength = 12
+---
+1 to intLength map strCharSet[randomInt(strCharSetLength)] joinBy '']]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<logger level="DEBUG" doc:name="Logger" doc:id="e4b77593-8b52-4530-9599-205ade6c7ee3" message="#[payload]" />
+				<os:store doc:name="Store" doc:id="61548a1e-bb1c-4f5b-9783-0170996b13e3" key="#[vars.nmpcid]" objectStore="Object_store">
+		</os:store>
+					<email:send doc:name="Send email to User" doc:id="96151ebd-81f5-4c22-bc81-d21e5d533406" config-ref="emailSmptConfig" fromAddress="${email.from}" subject="App Management Service - Temporary user key">
+			<email:to-addresses >
+				<email:to-address value="#[vars.emailid]" />
+			</email:to-addresses>
+			<email:body contentType="text/html" encoding="UTF-8">
+				<email:content ><![CDATA[#["X-USER-KEY": payload]]]></email:content>
+			</email:body>
+		</email:send>
+				<set-payload value="User Key is emailed to the user" doc:name="Set Payload" doc:id="33cdded3-70aa-464d-bb7d-9a4707cea898" />
+			
+</when>
+			<otherwise>
+				<flow-ref doc:name="Flow Reference" doc:id="5f4e673d-38c9-4a86-a2de-eef7a5e85520" name="raise-error-flow"/>
+
+			</otherwise>
+		
+</choice>
+	</flow>
+	<flow name="validate-user" doc:id="68413e16-7b08-4546-a463-afe2713a5057" >
+		<http:request method="GET" doc:name="Request" doc:id="09a229f5-c330-4dde-8485-19b8070b94fc" config-ref="HTTP_Request_configuration" path="/accounts/api/organizations/56c14f77-79ed-4de3-8313-d542ea9f232b/teams/daab6f95-1289-4f1a-b14e-912ea0871968/members?identity_type=user&amp;&amp;displayUserDetails=true&amp;sort=name">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	Authorization : "Basic YzRlbmc6YzRlQDIwMjA="
+}]]]></http:headers>
+		</http:request>
+		<logger level="DEBUG" doc:name="Logger" doc:id="4e307516-5829-4c90-9159-c7299742c9de" message="#[%dw 2.0&#10;output application/json&#10;---&#10;payload..name filter ((item, index) -&gt; item contains vars.nmpcid)]" />
+		<ee:transform doc:name="Transform Message" doc:id="82e4b0d1-9afb-4322-8dca-2a1e2d3689a9" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="userValidation" ><![CDATA[%dw 2.0
+output application/json
+---
+if((payload..name filter ((item, index) -> item contains vars.nmpcid))[0] == vars.nmpcid) true else false]]></ee:set-variable>
+				<ee:set-variable variableName="emailid" ><![CDATA[%dw 2.0
+output application/json
+---
+((payload.data filter ((item, index) -> item.name == vars.nmpcid)).email.value)[0] as String]]></ee:set-variable>
+			
+</ee:variables>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="Logger" doc:id="ed89d0c6-a9b7-49aa-abd2-9b9ae7fbb916" message="#[vars.userValidation]"/>
+	</flow>
+	<flow name="validate-user-key" doc:id="5be616e5-ff53-4f13-abf5-e855ba20b01d" >
+		<ee:transform doc:name="Transform Message" doc:id="d1599c77-039d-4669-870d-765513af4c8c" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="headerKey" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.headers.'x-user-key' as String default ""]]></ee:set-variable>
+				<ee:set-variable variableName="nmpcid" ><![CDATA[%dw 2.0
+output application/json
+---
+attributes.headers.'nmpcid' as String default ""]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference-validate-user" doc:id="bc09db70-5c51-45d4-9211-efc6921b9b08" name="validate-user"/>
+		<logger level="DEBUG" doc:name="Logger" doc:id="62502f8e-8669-4702-b180-0f5dc8e34649" message="#[vars.headerKey]"/>
+		<choice doc:name="Choice" doc:id="0cb25ff3-bdf6-4807-a2d3-48889e55a194" >
+			<when expression="#[vars.userValidation == true]">
+				<os:retrieve doc:name="Retrieve" doc:id="e61c0fd5-7df0-4e82-92a5-2cc3772386f5" key="#[vars.nmpcid]" objectStore="Object_store">
+			<os:default-value><![CDATA[Couldn't retrieve key]]></os:default-value>
+		</os:retrieve>
+				<logger level="DEBUG" doc:name="Logger" doc:id="02e18cca-7264-4f39-a7b6-e81c72011c33" message="#[payload]" />
+			</when>
+			<otherwise>
+				<flow-ref doc:name="Flow Reference" doc:id="f7bd501b-92e0-405a-ad6b-8c240a86d6dc" name="raise-error-flow"/>
+
+			</otherwise>
+		
+</choice>
+		<!-- <ee:transform doc:name="Transform Message" doc:id="adba758d-6c75-4ec7-ba64-faa3f63d8fd1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+-&#45;&#45;
+{
+	retrievedKey: payload as String
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform> -->
+		<ee:transform doc:name="Transform Message" doc:id="40822e08-0d85-4d45-9f15-6ec7797d80e1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	status: if(vars.headerKey as String == payload as String) true else false
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	
+</flow>
+	<flow name="get-status-flow" doc:id="bc8e1c59-584d-4371-a7af-8a806b2dd6d9" >
+		<logger level="DEBUG" doc:name="Logger" doc:id="ef4b329e-96f4-4f2c-9114-e70afd4cb071" message="#[vars.reqStatus]"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="aea60998-ae09-4d04-81f4-a2c1e8eb78fe" >
+			<route >
+				<ee:transform doc:name="Transform Message" doc:id="3408f217-7620-4cb2-927e-c24f62aba762" >
+					<ee:message >
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="zone" ><![CDATA[%dw 2.0
+output application/java
+---
+"semitrusted"]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="Flow Reference - Semitrusted" doc:id="64230c7e-eae9-4487-9525-70a53f246ca3" name="anypoint-resource-use-flow" />
+				<ee:transform doc:name="Transform Message" doc:id="c181345a-e6ab-411c-afd3-5a2e11b9a9cb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+			<route >
+				<ee:transform doc:name="Transform Message" doc:id="df6aab01-c4e1-47f9-9919-bc15067a65fd" >
+					<ee:message >
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="zone" ><![CDATA[%dw 2.0
+output application/java
+---
+"trusted"]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="Flow Reference - Trusted" doc:id="1ed59765-17b0-45bb-8299-94fe3fdac8cd" name="anypoint-resource-use-flow"/>
+				<ee:transform doc:name="Transform Message" doc:id="78ac1b27-2c96-4127-913d-64c78c507e6a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+		</scatter-gather>
+		<ee:transform doc:name="Transform Message" doc:id="0fcdcfed-c315-4dd6-a432-874cc7a63889" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="resourceList" ><![CDATA[%dw 2.0
+output application/json
+---
+flatten(payload..payload)
+
+//(payload..payload map (($$) : $))]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="Logger" doc:id="08dbdec2-c1e0-4973-ba36-2e351ef2014d" message="#[vars.resourceList]" />
+		<set-variable value="#[[]]" doc:name="Set Variable" doc:id="2603704b-4674-4b9d-b6f9-53fa47d0facd" variableName="statusList"/>
+		<foreach doc:name="For Each" doc:id="519f5201-4f3a-49f1-a144-250b0a9d43c7" collection="#[vars.reqPayload]">
+			<logger level="DEBUG" doc:name="Logger" doc:id="5996ad62-4c9f-4db9-867d-87c1a2570be0" message="#[payload]"/>
+			<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;((((payload as String replace "\n" with "") replace "\r" with "") replace "\t" with "") replace " " with "") replace "," with ""]' doc:name="Set Variable" doc:id="e415ef33-95da-41ec-89dc-5383bc0a9680" variableName="appName"/>
+			<ee:transform doc:name="Transform Message" doc:id="dbba975d-2d6b-4360-9deb-81a25ee2c8d8">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+[
+	status: vars.appName ++ " is " ++ ((vars.resourceList filter ((item, index) -> item.appName == vars.appName)).status)[0] as String
+]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			<set-variable value="#[if(1==1)(payload &gt;&gt; vars.statusList) else (1)]" doc:name="Set Variable" doc:id="92d09e5e-c53c-48a1-903b-7ce9eeaaddac" variableName="statusList"/>
+		</foreach>
+		<set-payload value="#[%dw 2.0&#10;output application/json&#10;---&#10;vars.statusList..status]" doc:name="Set Payload" doc:id="e5195868-477f-414f-8551-253ef033a172" />
+	</flow>
+	<flow name="raise-error-flow" doc:id="aaaf4aa6-1ae5-4a24-ad93-11eda7697eaa" >
+		<raise-error doc:name="Raise error" doc:id="9eab2cff-2a6c-4ad3-b474-60d26573839b" type="USER:UNAUTHORIZED" description="User is not authorized to perform the operation" />
+	</flow>
+</mule>

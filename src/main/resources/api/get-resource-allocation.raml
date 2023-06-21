@@ -1,0 +1,76 @@
+#%RAML 1.0
+title: Get Resource allocation
+baseUri: baseUri.com
+mediaType:
+  - application/json
+version: "1.0"
+protocols:
+  - HTTP
+
+/core:
+  /{rtfenv}: 
+    uriParameters:
+      rtfenv:
+        enum: [nonprod, preprod, prod, dr]
+    /{zone}:
+      uriParameters:
+        zone:
+          enum: [semitrusted, trusted]
+      get:
+  /ch:
+    /{chenv}: 
+      uriParameters:
+        chenv:
+          enum: [dev, qa, dev01, uat, uat01, hotfix, pre, training, prod, nonprod, preprod]
+      get:
+
+/api:
+  /{rtfenv}: 
+    uriParameters:
+      rtfenv:
+        enum: [nonprod, preprod, prod, dr]
+    /{zone}:
+      uriParameters:
+        zone:
+          enum: [semitrusted, trusted]
+      get:
+  /ch:
+    /{chenv}: 
+      uriParameters:
+        chenv:
+          enum: [dev, qa, dev01, uat, uat01, hotfix, pre, training, prod, nonprod, preprod]
+      get:
+      
+/reports:
+  /org:
+    /{organizationId}:
+      /env:
+        /{environmentId}:
+        get:
+  /{reportenv}:
+    uriParameters:
+      reportenv:
+        enum: [qa,uat,preprod,hotfix,training,prod]
+    /{timerange}:
+      get:
+  /nodes:
+    /all:
+      get:
+    /{cluster}:      
+      uriParameters:
+        cluster:
+          enum: [prod,prod-ext,dr,dr-ext,nonprod,nonprod-ext,preprod,preprod-ext]
+      get:
+
+/manage:
+  /{rtfenv}: 
+    uriParameters:
+      rtfenv:
+        enum: [nonprod, preprod, prod, dr]
+    /{status}:
+      uriParameters:
+        status:
+          enum: [start,stop,status]
+      patch:      
+      /appstatus:
+        get:
