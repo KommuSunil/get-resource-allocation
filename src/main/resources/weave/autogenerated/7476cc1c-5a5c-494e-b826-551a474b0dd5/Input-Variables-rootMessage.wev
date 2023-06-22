@@ -1,0 +1,7 @@
+%dw 2.0
+
+type auto_7476cc1c_5a5c_494e_b826_551a474b0dd5_Input_Variables_rootMessage = {|
+  payload: "prod" | "dr", 
+  attributes: Null
+|} {"typeId": "org.mule.runtime.api.message.Message"}
+

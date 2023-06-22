@@ -11,7 +11,8 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 			<set-variable value="#[payload]" doc:name="Set Variable - envId" doc:id="a89344fd-66f4-4cc6-a191-c986496d94d0" variableName="envId" />
 			<set-variable value='#[p("orgIds." ++ vars.envId)]' doc:name="Set Variable - orgId" doc:id="def17f69-1975-4ea9-b2ee-5c8f923455db" variableName="orgId" />
 			<try doc:name="Try" doc:id="dd3856d2-78eb-40ab-9029-5430de621355">
-				<http:request method="GET" doc:name="Request_Get Application List" doc:id="57b9a347-cceb-4f7f-931f-a61ce862f858" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=0&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true" target="getListPayload">
+				<until-successful maxRetries="3" doc:name="Until Successful" doc:id="b5bda7b4-80d7-450c-9fea-7942bdf6651e" millisBetweenRetries="10000">
+					<http:request method="GET" doc:name="Request_Get Application List" doc:id="57b9a347-cceb-4f7f-931f-a61ce862f858" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=0&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true" target="getListPayload">
 					<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -23,19 +24,22 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 }]]]></http:uri-params>
 				
 </http:request>
+				</until-successful>
 				<choice doc:name="Choice" doc:id="d71a17a7-f7b6-44de-bc73-637d01b38937" >
 					<when expression="#[vars.getListPayload.total &gt;=100]">
-						<http:request method="GET" doc:name="Request_Get Application List 100-200" doc:id="e6d36794-6aed-44b6-8e93-eeead0a693e4" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=100&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true" >
-							<http:headers ><![CDATA[#[output application/java
+						<until-successful maxRetries="3" doc:name="Until Successful" doc:id="e806c30b-35fe-4bbd-8575-4f704e518974" millisBetweenRetries="10000">
+							<http:request method="GET" doc:name="Request_Get Application List 100-200" doc:id="e6d36794-6aed-44b6-8e93-eeead0a693e4" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis?limit=200&amp;offset=100&amp;pinnedFirst=true&amp;sort=name&amp;ascending=false" outputMimeType="application/json" followRedirects="true">
+							<http:headers><![CDATA[#[output application/java
 ---
 {
 	"Authorization" : "Bearer " ++ vars.token
 }]]]></http:headers>
-							<http:uri-params ><![CDATA[#[{
+							<http:uri-params><![CDATA[#[{
 	"orgId": vars.orgId,
 	"envId": vars.envId
 }]]]></http:uri-params>
 						</http:request>
+						</until-successful>
 						<ee:transform doc:name="Transform Message" doc:id="d5355b49-f61d-4c8c-9da4-e6be44f0f8b5" >
 							<ee:message >
 								<ee:set-payload ><![CDATA[%dw 2.0
@@ -62,7 +66,8 @@ output application/json
 					<set-variable value="#[vars.forEachPayload.id]" doc:name="Set Variable -apiid" doc:id="d9ba551d-2e2b-4f03-a4b6-ec3a4938480e" variableName="apiid"/>
 					<scatter-gather doc:name="Scatter-Gather" doc:id="37f3a57f-4ac2-44a7-af25-0d81e16d8a07">
 						<route>
-							<http:request method="GET" doc:name="Request_Get Proxy Status" doc:id="d8b3a815-8957-4505-bc5f-d58fc555c43d" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}?includeProxyConfiguration=true&amp;includeTlsContexts=true" outputMimeType="application/json" followRedirects="true">
+							<until-successful maxRetries="3" doc:name="Until Successful" doc:id="bf56fc3b-d967-49d1-af4d-b16e9c6e9cdf" millisBetweenRetries="10000">
+								<http:request method="GET" doc:name="Request_Get Proxy Status" doc:id="d8b3a815-8957-4505-bc5f-d58fc555c43d" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}?includeProxyConfiguration=true&amp;includeTlsContexts=true" outputMimeType="application/json" followRedirects="true">
 						<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -74,6 +79,7 @@ output application/json
 	"apiid": vars.apiid
 }]]]></http:uri-params>
 					</http:request>
+							</until-successful>
 							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="3e8f4c60-f15b-4b08-8fd1-b368ca8a475f" variableName="proxyStatusResponse" />
 							<logger level="DEBUG" doc:name="Logger" doc:id="c3c38ddd-0111-456a-8d8f-05698590d952" message="#[vars.proxyStatusResponse]"/>
 							<!-- <json-logger:logger doc:name="Logger" doc:id="79f2d8fe-08c7-449b-9c91-d828108778ac" config-ref="JSON_Logger_Config" message="proxyStatusResponse">
@@ -85,7 +91,8 @@ output application/json
 							</json-logger:logger> -->
 						</route>
 						<route>
-							<http:request method="GET" doc:name="Request_Get Client Contracts List" doc:id="9d9f06ca-8b6e-4fc0-91b0-c50758bf2e1f" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/contracts?ascending=true&amp;limit=100&amp;offset=0&amp;sort=name" outputMimeType="application/json" followRedirects="true">
+							<until-successful maxRetries="3" doc:name="Until Successful" doc:id="aee65a6c-53e8-47ed-bb66-ba083ec05956" millisBetweenRetries="10000">
+								<http:request method="GET" doc:name="Request_Get Client Contracts List" doc:id="9d9f06ca-8b6e-4fc0-91b0-c50758bf2e1f" config-ref="HTTP_Request_configuration" path="/apimanager/xapi/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/contracts?ascending=true&amp;limit=100&amp;offset=0&amp;sort=name" outputMimeType="application/json" followRedirects="true">
 						<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -97,6 +104,7 @@ output application/json
 	"apiid": vars.apiid
 }]]]></http:uri-params>
 					</http:request>
+							</until-successful>
 							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="b9acba81-039f-4894-b092-539799c072ce" variableName="contractsResponse" />
 							<logger level="DEBUG" doc:name="Logger" doc:id="357fb9b3-1210-4b74-984d-18703deef670" message="#[vars.contractsResponse]"/>
 							<!-- <json-logger:logger doc:name="Logger" doc:id="cc8e0ed8-a651-4849-8a1c-9d98aac4c378" config-ref="JSON_Logger_Config" message="contractsResponse">
@@ -108,7 +116,8 @@ output application/json
 							</json-logger:logger> -->
 						</route>
 						<route>
-							<http:request method="GET" doc:name="Request_Get Policies List" doc:id="ecbe953c-3474-4650-8041-d03690092621" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/policies?fullInfo=false" outputMimeType="application/json" followRedirects="true">
+							<until-successful maxRetries="3" doc:name="Until Successful" doc:id="8946e11a-428f-46db-b0d7-c29622afa019" millisBetweenRetries="10000">
+								<http:request method="GET" doc:name="Request_Get Policies List" doc:id="ecbe953c-3474-4650-8041-d03690092621" config-ref="HTTP_Request_configuration" path="/apimanager/api/v1/organizations/{orgId}/environments/{envId}/apis/{apiid}/policies?fullInfo=false" outputMimeType="application/json" followRedirects="true">
 						<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -120,6 +129,7 @@ output application/json
 	"apiid": vars.apiid
 }]]]></http:uri-params>
 					</http:request>
+							</until-successful>
 							<set-variable value="#[payload]" doc:name="Set Variable" doc:id="f4dc3408-35da-43c1-9cd7-6ae75872e888" variableName="policyResponse" />
 							<logger level="DEBUG" doc:name="Logger" doc:id="9a17347b-ed81-4f58-8650-451491fd4b00" message="#[vars.policyResponse]"/>
 							<!-- <json-logger:logger doc:name="Logger" doc:id="7fe1da8b-d41d-4b26-bfe7-c1d4545380e3" config-ref="JSON_Logger_Config" message="policyResponse">
