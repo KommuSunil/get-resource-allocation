@@ -52,12 +52,8 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 				doc:name="Set Variable - orgId"
 				doc:id="67a8072d-712d-4907-98ab-a62053552a6b" variableName="orgId" />
 			<try doc:name="Try" doc:id="3a081c12-9b58-4ba9-b72d-d8b144ae4e36">
-				<http:request method="GET"
-					doc:name="Request_Get Application List"
-					doc:id="08e4b8d2-5677-48f0-bbb7-998c2434572b"
-					config-ref="HTTP_Request_configuration"
-					path="/armui/api/v1/applications" outputMimeType="application/json"
-					followRedirects="true">
+				<until-successful maxRetries="3" doc:name="Until Successful" doc:id="43c70668-884f-4fc3-84d2-089ca1ad5a49" millisBetweenRetries="10000">
+					<http:request method="GET" doc:name="Request_Get Application List" doc:id="08e4b8d2-5677-48f0-bbb7-998c2434572b" config-ref="HTTP_Request_configuration" path="/armui/api/v1/applications" outputMimeType="application/json" followRedirects="true">
 					<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -66,6 +62,7 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 	"X-ANYPNT-ORG-ID" : vars.orgId
 }]]]></http:headers>
 				</http:request>
+				</until-successful>
 				<json-logger:logger doc:name="Logger"
 					doc:id="ad712fdc-9118-4837-9339-cfc3844eb9c1"
 					config-ref="JSON_Logger_Config"
@@ -87,10 +84,8 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 						variableName="forEachPayload" />
 					<try doc:name="Try"
 						doc:id="b451b543-151a-4873-815e-96159084ab9e">
-						<http:request method="GET" doc:name="Request"
-							doc:id="afbb88df-1ef3-470e-9fcf-642d42530e0f"
-							config-ref="HTTP_Request_configuration"
-							path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments/{appId}">
+						<until-successful maxRetries="3" doc:name="Until Successful" doc:id="e289ef68-da97-4218-baab-c2521ddc6bb6" millisBetweenRetries="10000">
+							<http:request method="GET" doc:name="Request" doc:id="afbb88df-1ef3-470e-9fcf-642d42530e0f" config-ref="HTTP_Request_configuration" path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments/{appId}">
 							<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -102,6 +97,7 @@ http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/
 	"appId": payload.id
 }]]]></http:uri-params>
 						</http:request>
+						</until-successful>
 						<json-logger:logger doc:name="Logger"
 							doc:id="623a7096-f31d-45c0-b2ce-2f2ba195ea84"
 							config-ref="JSON_Logger_Config"
@@ -302,10 +298,9 @@ output application/java
 null]]></ee:set-attributes>
 			</ee:message>
 		</ee:transform>
-		<http:request method="POST" doc:name="Request"
-			doc:id="b9919616-126a-4d92-a212-8675789991d8"
-			config-ref="HTTP_Request_configuration"
-			path="/accounts/api/v2/oauth2/token" />
+		<until-successful maxRetries="3" doc:name="Until Successful" doc:id="570f0868-c8a8-41d4-b2b8-cddd732675a5" millisBetweenRetries="10000">
+			<http:request method="POST" doc:name="Request" doc:id="b9919616-126a-4d92-a212-8675789991d8" config-ref="HTTP_Request_configuration" path="/accounts/api/v2/oauth2/token" />
+		</until-successful>
 		<set-variable value="#[payload.access_token]"
 			doc:name="Set Variable - token"
 			doc:id="b3bc4986-5adf-427a-98d4-feb9a2776648" variableName="token" />

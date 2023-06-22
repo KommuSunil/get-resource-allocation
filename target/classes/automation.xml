@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:java="http://www.mulesoft.org/schema/mule/java" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/java http://www.mulesoft.org/schema/mule/java/current/mule-java.xsd">
+	<flow name="ComapreProdAndDrAppsFlow" doc:id="ab2ce406-c29f-46fe-8156-61c94647b26f" >
+		<http:listener doc:name="Listener" doc:id="2bc0307e-56b0-4e22-9f5d-4d3d2e725eac" config-ref="get-resource-allocation-httpListenerConfig" path="/automation/apps"/>
+		<ee:transform doc:name="set vars" doc:id="c0860b51-6e02-4138-a078-ec8dc9d6e74d">
+			<ee:variables>
+				<ee:set-variable variableName="rtfenvs" ><![CDATA[["prod","dr"]]]></ee:set-variable>
+				<ee:set-variable variableName="zones" ><![CDATA[["semitrusted","trusted"]]]></ee:set-variable>
+				<ee:set-variable variableName="data" ><![CDATA[%dw 2.0
+output application/csv
+---
+[]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<foreach doc:name="For Each" doc:id="21a11ed8-6018-407a-879c-f96e256893ea" collection="vars.rtfenvs">
+			<set-variable value="#[payload]" doc:name="Set rtfenv" doc:id="69b86451-1e43-450d-8070-e96554ce06aa" variableName="rtfenv"/>
+			<foreach doc:name="For Each" doc:id="4736c269-a0cd-4d71-a243-93947518d0ee" collection="#[vars.zones]">
+				<set-variable value="#[payload]" doc:name="Set zone" doc:id="7cd83bea-97eb-4338-8a40-e0901be7094a" variableName="zone" />
+				<flow-ref doc:name="anypoint-resource-use-flow" doc:id="1efb9703-821f-4ad6-ab3d-499141a1ef7f" name="anypoint-resource-use-flow"/>
+				<ee:transform doc:name="vars.data ++ payload" doc:id="39e602e0-c0b0-444c-a4de-4821cefeb768" >
+					<ee:message >
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="data" ><![CDATA[%dw 2.0
+output application/csv
+---
+vars.data ++ payload]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</foreach>
+		</foreach>
+		<ee:transform doc:name="orderBy appName" doc:id="8bbc76c8-dfb9-440c-8977-3c3b71f240c3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+vars.data orderBy (lower($.appName))]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="csv to xlsx" doc:id="68fb4466-d84f-4088-8174-9c5cbb280d87" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="columns" ><![CDATA[[2,7,9,12,8,11]]]></ee:set-variable>
+				<ee:set-variable variableName="xlsxData" ><![CDATA[	%dw 2.0
+	output application/xlsx header=true
+	---
+	{
+	    "sheet1": payload map (item, index) -> {
+	        "env" : item.env,
+	        "orgId" : p("bgs." ++ item.orgId),
+	        "appName" : item.appName,
+	        "status" : item.status,
+	        "artifactId" : item.artifactId,
+	        "version" : item.version,
+	        "lastMileSecurity" : item.lastMileSecurity,
+	        "artifact-version-LMS" : item.artifactId ++ ":" ++ item.version ++ ":" ++ item.lastMileSecurity,
+	        "apiid" : item.apiid,
+            "missing-apiid" : item.env ++ "-" ++ item.apiid,
+	        "timeout" : item.timeout,
+	        "url" : item.url,
+            "resource-diff" : item.appName ++ "-" ++ item.cpuReserved ++ "-" ++ item.cpuMax ++ "-" ++ item.memReserved ++ "-" ++ item.memMax ++ "-" ++ item.replica,
+	        "cpuReserved" : item.cpuReserved,
+	        "cpuMax" : item.cpuMax,
+	        "memReserved" : item.memReserved,
+	        "memMax" : item.memMax,
+	        "replica" : item.replica
+	    }
+	}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<file:write doc:id="310ecfed-7bfa-4f97-a48f-80eccc670056" path='#["C:\Users\KO20127260\Downloads\Auto\prod-dr-apps-"++ now() as String{format : "ddMMMyyyy"} ++ ".xlsx"]' doc:name="Before">
+			<file:content ><![CDATA[#[vars.xlsxData]]]></file:content>
+				</file:write>
+		<flow-ref doc:name="highlightUniqueValuesFlow" doc:id="a232fc6f-36a5-4003-aad8-d419e3ca0f79" name="highlightUniqueValuesFlow"/>
+		<file:write doc:name="After" doc:id="06915d0f-ba5f-4b9e-863d-d13553820a8f" path='#["C:\Users\KO20127260\Downloads\Auto\prod-dr-apps-sync-" ++ now() as String{format: "ddMMMyyyy"} ++ ".xlsx"]'/>
+		<ee:transform doc:name="response" doc:id="d8ab6846-19c6-44e8-a12a-678da0c146c6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"flow" : "APP Report",
+	"status" : "success"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="ComapreProdAndDrAPIsFlow" doc:id="34289e2d-47ae-4b29-b65b-32856a095fb3" >
+		<http:listener doc:name="Listener" doc:id="1c1821eb-7f50-4cb0-9a8e-20526956a6c7" config-ref="get-resource-allocation-httpListenerConfig" path="/automation/apis"/>
+		<ee:transform doc:name="set vars" doc:id="cd60f12b-f146-4152-b5a7-fc5e96cbbaf3" >
+			<ee:variables >
+				<ee:set-variable variableName="rtfenvs" ><![CDATA[["prod","dr"]]]></ee:set-variable>
+				<ee:set-variable variableName="zones" ><![CDATA[["semitrusted","trusted"]]]></ee:set-variable>
+				<ee:set-variable variableName="data" ><![CDATA[%dw 2.0
+output application/csv
+---
+[]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<foreach doc:name="For Each Env" doc:id="76bd18c7-ac3a-4778-8e7d-1a5683b6fd50" collection="vars.rtfenvs" >
+			<set-variable value="#[payload]" doc:name="Set rtfenv" doc:id="1c8f1873-a4df-4815-8e61-b55c5725e65e" variableName="rtfenv" />
+			<foreach doc:name="For Each Zone" doc:id="01781edc-4be9-4e2a-87ee-9f2598b60e6e" collection="#[vars.zones]" >
+				<set-variable value="#[payload]" doc:name="Set zone" doc:id="57080259-e28b-4239-b65e-04693bc02498" variableName="zone" />
+				<flow-ref doc:name="consolidated-rtfapi-env-utilizationFlow" doc:id="10685c0a-166a-4fe9-a47e-2fb9b31c47c5" name="consolidated-rtfapi-env-utilizationFlow" />
+				<ee:transform doc:name="vars.data ++ payload" doc:id="7a115f76-b434-474d-b334-78e87e2c3201" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="data" ><![CDATA[%dw 2.0
+output application/csv
+---
+vars.data ++ payload]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</foreach>
+		</foreach>
+		<ee:transform doc:name="orderBy appName" doc:id="ce09868a-afee-448b-bdc1-6845fc21d77c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+vars.data orderBy (lower($.appName))]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="csv to xlsx" doc:id="4757e9e7-dbd0-4249-a737-64c446a36d01" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="xlsxData" ><![CDATA[%dw 2.0
+output application/xlsx header=true
+---
+{
+    "sheet1": payload map (item, index) -> {
+        "env" : item.env,
+        "orgId" : p("bgs." ++ item.orgId),
+        "appName" : item.appName,
+        "apiid" : item.apiid,
+        "version" : item.version,
+        "proxy" : item.proxy,
+        "Api-Version-Proxy-URI-Timeout" : item.appName ++ ":" ++ item.version ++ ":" ++ item.proxy ++ ":" ++ item.implementationUri ++ ":" ++ item.responseTimeout,
+        "applicationName" : item.applicationName,
+        "ApiName-AppName" : item.appName ++ "-" ++ item.applicationName,
+        "implementationUri" : item.implementationUri,
+        "responseTimeout" : item.responseTimeout,
+        "contractCount" : item.contractCount,
+        "contracts" : item.contracts,
+        "Api-ContractCount-Contracts" : item.appName ++ "-" ++ item.contractCount ++ "-" ++ item.contracts,
+        "Api-policies" : item.appName ++ ":" ++ item.policies,
+        "policies" : item.policies
+    }
+}]]></ee:set-variable>
+				<ee:set-variable variableName="columns" ><![CDATA[[2,6,8,13]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<file:write doc:name="Before" doc:id="f2c87e88-6989-4a31-9607-330bb2fa98fe" path='#["C:\Users\KO20127260\Downloads\Auto\prod-dr-apis-"++ now() as String{format : "ddMMMyyyy"} ++ ".xlsx"]' >
+			<file:content ><![CDATA[#[vars.xlsxData]]]></file:content>
+		</file:write>
+		<flow-ref doc:name="highlightUniqueValuesFlow" doc:id="b38ffc8b-fbb9-4f97-816b-968686303e9c" name="highlightUniqueValuesFlow"/>
+		<file:write doc:name="After" doc:id="89e05a4a-a043-4c35-943c-37afafed1be0" path='#["C:\Users\KO20127260\Downloads\Auto\prod-dr-apis-sync-" ++ now() as String{format: "ddMMMYYY"} ++ ".xlsx"]'/>
+		<ee:transform doc:name="response" doc:id="e060ffab-b414-4d7d-afbd-a8cfa9f401d8" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{	
+	"flow" : "API Report",
+	"status" : "success"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	
+	<sub-flow name="highlightUniqueValuesFlow" doc:id="feae72cf-f8a9-4498-a538-fc0813dc609e" >
+		<ee:transform doc:name="Transform Message" doc:id="75ca78d5-2c27-48a6-b151-f6ac8b7041aa" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="excelData" ><![CDATA[%dw 2.0
+output application/java
+---
+write(vars.xlsxData, "application/xlsx") as Binary {class: "byte[]"}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<java:new doc:name="New" doc:id="a12a5b4a-8d94-40ad-973f-0266c77f803d" class="HighlightUniqueValues" constructor="HighlightUniqueValues()"/>
+		<java:invoke doc:name="Invoke" doc:id="2d6c1dea-7cdd-453d-b88b-bf2b21e12167" instance="#[payload]" class="HighlightUniqueValues" method="highlightUniqueValues(byte[],int[])">
+			<java:args ><![CDATA[#[{
+	excelData : vars.excelData,
+	columnIndex : vars.columns
+}]]]></java:args>
+		</java:invoke>
+ 
+	</sub-flow>
+</mule>

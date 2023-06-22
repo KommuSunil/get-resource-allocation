@@ -21,7 +21,7 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 	</http:request-config>
 	<json-logger:config name="JSON_Logger_Config" doc:name="JSON Logger Config" doc:id="8900957c-d016-4486-8c4e-f9f99517110a" applicationName="get-resource-allocation" applicationVersion="1.0.0" environment="DEV" />
 	<http:listener-config name="get-resource-allocation-httpListenerConfig">
-        <http:listener-connection host="0.0.0.0" port="8081"/>
+        <http:listener-connection host="0.0.0.0" port="8082"/>
     </http:listener-config>
     <email:smtp-config name="emailSmptConfig" doc:name="Email SMTP" doc:id="a5e7c4a0-94b9-4f8a-b336-0c9471ca31a4" >
 		<email:smtp-connection host="${email.host}" connectionTimeout="30" readTimeout="30" writeTimeout="30" port="${email.port}">
